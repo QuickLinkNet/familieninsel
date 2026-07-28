@@ -46,32 +46,9 @@ export function HomePage() {
 
       <ResourceBar resources={resources} />
 
-      {!buildingLoading && building !== null && (
-        <BuildingProgress
-          building={building}
-          resources={resources}
-          isParent={session?.playerRole === 'parent'}
-          onChanged={() => {
-            void refreshAll();
-          }}
-        />
-      )}
-      {buildingError !== null && (
-        <p role="alert" className="auth-error">
-          {buildingError}
-        </p>
-      )}
-
-      {!minigamesLoading && (
-        <MinigameSection
-          minigames={minigames}
-          onChanged={() => {
-            void refreshAll();
-          }}
-        />
-      )}
-
-      {loading && <p>Lade Aufgaben...</p>}
+      {/* Aufgaben zuerst: Kinder sollen ihre Aufgabe ohne Scrollen finden,
+          Eltern sollen offene Bestaetigungen sofort sehen. */}
+      {loading && <p className="loading-hint">Lade Aufgaben ...</p>}
       {error !== null && (
         <p role="alert" className="auth-error">
           {error}
@@ -93,6 +70,31 @@ export function HomePage() {
           tasks={tasks}
           resources={resources}
           players={players}
+          onChanged={() => {
+            void refreshAll();
+          }}
+        />
+      )}
+
+      {!buildingLoading && building !== null && (
+        <BuildingProgress
+          building={building}
+          resources={resources}
+          isParent={session?.playerRole === 'parent'}
+          onChanged={() => {
+            void refreshAll();
+          }}
+        />
+      )}
+      {buildingError !== null && (
+        <p role="alert" className="auth-error">
+          {buildingError}
+        </p>
+      )}
+
+      {!minigamesLoading && (
+        <MinigameSection
+          minigames={minigames}
           onChanged={() => {
             void refreshAll();
           }}

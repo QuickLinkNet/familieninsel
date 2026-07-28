@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Task, TaskStatus } from '../../types/task';
 import type { Resource } from '../../types/resource';
+import { resourceIcon } from '../../utils/resourceIcons';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   open: 'Offen',
@@ -15,9 +16,10 @@ function rewardLabel(task: Task, resources: Resource[]): string {
     .filter((reward) => reward.amount > 0)
     .map((reward) => {
       const resource = resources.find((candidate) => candidate.id === reward.resourceId);
-      return `${reward.amount} ${resource?.name ?? '?'}`;
+      const icon = resource !== undefined ? resourceIcon(resource.key) : '❔';
+      return `${icon} ${reward.amount} ${resource?.name ?? '?'}`;
     })
-    .join(', ');
+    .join('  ');
 }
 
 interface TaskCardProps {

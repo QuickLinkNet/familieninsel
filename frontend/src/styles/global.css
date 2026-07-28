@@ -44,7 +44,8 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+select {
   font: inherit;
   min-height: 44px;
 }
@@ -259,6 +260,19 @@ input {
   margin-top: 12px;
 }
 
+.task-card .task-complete-button {
+  width: 100%;
+  font-size: 1.15em;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  font-size: 1.2em;
+  padding: 32px 16px;
+}
+
 .create-task-form {
   display: flex;
   flex-direction: column;
@@ -336,6 +350,11 @@ input {
 .building-complete {
   color: var(--accent);
   font-weight: 600;
+  font-size: 1.1em;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-bg, rgba(31, 138, 112, 0.12));
+  display: inline-block;
 }
 
 .progress-bar {
@@ -495,4 +514,35 @@ input {
 
 .treasure-spot--hint {
   box-shadow: 0 0 0 4px var(--accent);
+}
+
+.loading-hint {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.loading-hint::after {
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: 8px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: familieninsel-spin 0.8s linear infinite;
+}
+
+@keyframes familieninsel-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-hint::after {
+    animation: none;
+  }
 }

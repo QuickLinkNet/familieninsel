@@ -10,7 +10,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <main className="auth-screen">
-        <p>Lade...</p>
+        <p className="loading-hint">Einen Moment ...</p>
       </main>
     );
   }

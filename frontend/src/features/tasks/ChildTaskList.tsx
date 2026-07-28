@@ -29,7 +29,11 @@ export function ChildTaskList({ tasks, resources, onChanged }: ChildTaskListProp
   }
 
   if (tasks.length === 0) {
-    return <p>Aktuell hast du keine Aufgaben.</p>;
+    return (
+      <p className="empty-state">
+        <span aria-hidden="true">🎉</span> Keine Aufgaben für dich gerade!
+      </p>
+    );
   }
 
   return (
@@ -44,12 +48,13 @@ export function ChildTaskList({ tasks, resources, onChanged }: ChildTaskListProp
           {task.status === 'open' && (
             <button
               type="button"
+              className="task-complete-button"
               disabled={pendingId === task.id}
               onClick={() => {
                 void handleComplete(task.id);
               }}
             >
-              Erledigt!
+              <span aria-hidden="true">✅</span> Erledigt!
             </button>
           )}
         </TaskCard>

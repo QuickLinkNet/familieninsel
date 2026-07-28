@@ -103,19 +103,29 @@ Der Produktivserver (Alfahosting) liefert **SQLite 3.7.17 (2013)** aus – besta
 ```text
 frontend/src/
 ├── app/           App.tsx (Router-Setup)
-├── pages/         HomePage (Dashboard: Ressourcen, Kind-/Eltern-Aufgabenansicht)
-├── hooks/         useTasksAndResources (gemeinsames Fetch/Refresh fuer Aufgaben + Ressourcen)
-├── features/      auth/ (Phase 1), tasks/ (Phase 2: TaskCard, ChildTaskList, ParentTaskDashboard, CreateTaskForm),
-│                  resources/ (Phase 2: ResourceBar)
-│                  family/, buildings/, island/, minigames/ folgen je Phase
-├── components/    Wiederverwendbare, feature-übergreifende UI-Bausteine
+├── pages/         HomePage (Dashboard: Ressourcen, Aufgaben, Bauprojekt, Minispiele, Tagebuch)
+├── hooks/         useTasksAndResources, useBuilding, useActivity, useMinigames (Fetch/Refresh je Domäne)
+├── features/
+│   ├── auth/        Login, Profilauswahl, Eltern-PIN (Phase 1)
+│   ├── tasks/        TaskCard, ChildTaskList, ParentTaskDashboard, CreateTaskForm (Phase 2)
+│   ├── resources/    ResourceBar (Phase 2)
+│   ├── island/       BuildingProgress, ActivityFeed (Phase 3)
+│   └── minigames/    MinigameSection, TreasureHuntGame (Phase 4)
 ├── services/      Zentrale API-Abstraktion (api.ts) + feature-spezifische Services
-├── hooks/         Zustandslogik, sobald benötigt
 ├── types/         Zentrale Typdefinitionen (u. a. API-Response-Typen)
-└── styles/        Globale Styles
+├── utils/         resourceIcons.ts (Emoji-Zuordnung fuer Rohstoffe, Phase 5)
+└── styles/        Globale Styles (ein global.css, keine CSS-Module noetig bei dieser Groesse)
 ```
 
 `vite.config.ts` setzt `base` nur im Build (`/apps/familieninsel/`), im Dev-Server bleibt `/`. `App.tsx` liest den `basename` für React Router aus `import.meta.env.BASE_URL`, sodass beide Modi automatisch korrekt sind.
+
+## Responsive Design & UX (Phase 5)
+
+**Reihenfolge im Dashboard ist rollenabhaengig priorisiert, nicht chronologisch**: Aufgaben stehen in `HomePage.tsx` direkt nach der Ressourcenleiste, vor Bauprojekt/Minispiel/Tagebuch. Grund: Die Abnahmekriterien verlangen explizit, dass ein Kind seine Aufgabe "mit wenigen Aktionen" findet und ein Elternteil offene Bestaetigungen "sofort sichtbar" hat – beides waere durch eine chronologische Anordnung (Ressourcen → Bauprojekt → Minispiel → Aufgaben) verletzt worden, da Nutzer erst an Bauprojekt-Details und Minispiel-Karten vorbeiscrollen muessten.
+
+**Audit-Methode ohne Screenshots**: Da die Browser-Vorschau in dieser Umgebung keine Screenshots liefern kann, wurde der Responsive-Check programmatisch gefahren (`document.body.scrollWidth` vs. `window.innerWidth` fuer horizontales Ueberlaufen, `getBoundingClientRect()` auf allen `button`/`input`/`select` fuer Touch-Ziele < 44×44px) bei 1024×768 (Tablet quer, Prioritaet 1 laut Spezifikation), 768×1024 (Tablet hoch) und 375×812 (Mobile). Einziger gefundener Treffer: `<select>` hatte kein `min-height: 44px` (nur `button`/`input` waren erfasst) – behoben in `global.css`.
+
+**Rohstoff-Icons sind einfache Emoji, keine Bilddateien** (`utils/resourceIcons.ts`): konsistent mit der bestehenden "keine Bildassets im MVP"-Linie aus Phase 0–4, aber wichtig fuer Kinder, die noch nicht gut lesen (Emil, 5) – Icons erlauben das Erkennen einer Belohnung ohne Lesen des Rohstoffnamens.
 
 ## Build- und Deploy-Pipeline
 
