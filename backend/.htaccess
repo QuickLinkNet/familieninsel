@@ -1,0 +1,8 @@
+# backend/ enthaelt Anwendungscode, Vendor-Autoloader und (lokal) Storage.
+# Darf niemals direkt oeffentlich erreichbar sein - nur api/index.php darf hinein requiren.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>
