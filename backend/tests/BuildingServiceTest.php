@@ -11,6 +11,7 @@ use App\Repositories\ActivityLogRepository;
 use App\Repositories\BuildingRepository;
 use App\Repositories\FamilyBuildingRepository;
 use App\Repositories\FamilyRepository;
+use App\Repositories\MinigameRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
@@ -44,6 +45,7 @@ final class BuildingServiceTest extends TestCase
         $seeder->seedResourceCatalogIfEmpty();
         $seeder->seedBuildingCatalogIfEmpty();
         $seeder->seedActiveFamilyBuildingIfEmpty();
+        $seeder->seedMinigameCatalogIfEmpty();
 
         $this->resourceRepository = new ResourceRepository($this->pdo);
         $authService = new AuthService(new FamilyRepository($this->pdo), new PlayerRepository($this->pdo));
@@ -67,6 +69,7 @@ final class BuildingServiceTest extends TestCase
             $this->resourceRepository,
             new ResourceTransactionRepository($this->pdo),
             new ActivityLogRepository($this->pdo),
+            new MinigameRepository($this->pdo),
         );
     }
 
@@ -153,6 +156,25 @@ final class BuildingServiceTest extends TestCase
         self::assertSame(5, $building['stage']);
         self::assertSame(100, $building['progressPercent']);
         self::assertNotNull($building['completedAt']);
+    }
+
+    public function testCompletingBuildingUnlocksLinkedMinigame(): void
+    {
+        $this->grantResources($this->woodResourceId, 20);
+        $this->grantResources($this->metalResourceId, 10);
+        $this->grantResources($this->fabricResourceId, 8);
+        $this->grantResources($this->ropeResourceId, 5);
+
+        $this->buildingService->contribute($this->familyId, $this->manuelId, [
+            'wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5,
+        ]);
+
+        $minigameId = (int) $this->pdo->query("SELECT id FROM minigames WHERE key = 'schatzsuche'")->fetchColumn();
+        $status = (new MinigameRepository($this->pdo))->findFamilyStatus($this->familyId, $minigameId);
+
+        self::assertNotNull($status);
+        self::assertNotNull($status['unlocked_at']);
+        self::assertNull($status['first_completion_at']);
     }
 
     public function testContributingAfterCompletionIsRejected(): void

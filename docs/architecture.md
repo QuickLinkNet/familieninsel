@@ -29,17 +29,17 @@ Bewusste Entscheidung (siehe Projekt-Feedback): Es gibt **keinen** lokalen PHP-E
 backend/
 ├── public/           Web-Root des API-Einstiegspunkts (index.php, .htaccess)
 ├── src/
-│   ├── Controllers/   Auth, Players, Tasks, Resources, Buildings, Activity, Health
-│   ├── Services/      AuthService, TaskService, BuildingService (Geschaeftslogik, keine SQL-Statements)
-│   ├── Repositories/  Family/Player/Task/Resource/ResourceTransaction/ActivityLog/Building/FamilyBuilding-Repository (einziger Ort mit SQL)
+│   ├── Controllers/   Auth, Players, Tasks, Resources, Buildings, Minigames, Activity, Health
+│   ├── Services/      AuthService, TaskService, BuildingService, MinigameService (Geschaeftslogik, keine SQL-Statements)
+│   ├── Repositories/  Family/Player/Task/Resource/ResourceTransaction/ActivityLog/Building/FamilyBuilding/Minigame-Repository (einziger Ort mit SQL)
 │   ├── Middleware/     Cors, RequireFamilySession, RequireAuth, RequireParent, Csrf
-│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie, Ressourcen, Demo-Aufgaben, Strandhuette)
+│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie, Ressourcen, Demo-Aufgaben, Strandhuette, Schatzsuche)
 │   ├── Support/        JsonResponse, Router (mit {param}-Matching), Session, Request, Logger, Clock
-│   └── Game/            (noch leer – Spiellogik ab Phase 5, Schatzsuche)
+│   └── Game/            (noch leer – die Schatzsuche-Logik lebt komplett im Frontend, siehe unten)
 ├── config/            Zentrale Konfiguration (CORS-Origins, DB-Pfad, Session/Security-Werte)
 ├── database/           migrations/ (SQL, auto-angewendet), seeds/ (bisher ungenutzt, Seeding laeuft ueber Seeder.php)
 ├── storage/            database/, logs/, backups/ – nie versioniert, nie deployt überschrieben
-└── tests/              PHPUnit (52 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware, TaskService, BuildingService)
+└── tests/              PHPUnit (58 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware, TaskService, BuildingService, MinigameService)
 ```
 
 **Namenskonvention bewusst beachtet:** Ordner unter `src/` sind exakt so großgeschrieben wie die PSR-4-Namespace-Segmente (`Controllers`, `Services`, …). Grund: Beim Schwesterprojekt `neighborhood` hat ein Autoloader, der Namespace-Segmente klein schrieb, obwohl die Ordner auf der Platte großgeschrieben waren, auf dem case-insensitiven Windows-Dev-Rechner nie ein Problem gezeigt – auf dem case-sensitiven Linux-Produktivserver aber jeden Request mit 500 quittiert. Hier gibt es diese Diskrepanz gar nicht erst: `composer.json` mappt `App\` 1:1 auf `src/`, ohne Case-Transformation.
@@ -73,6 +73,14 @@ MVP-Annahme: **hoechstens ein Bauprojekt pro Familie insgesamt** (nicht nur "gle
 Fertigstellung ist wie bei Aufgaben-Belohnungen doppelt abgesichert: `FamilyBuildingRepository::markCompleted()` aktualisiert nur, wenn `status = 'in_progress'` (per `rowCount()` geprueft) – ein zweiter Abschluss-Versuch (oder ein Race) kann daher nie zweimal den "Gebaeude fertiggestellt"-Tagebucheintrag erzeugen.
 
 **Warum die Rollenpruefung noch keinen echten Business-Endpunkt schuetzt:** `RequireParent` ist fertig und per PHPUnit getestet (`SessionMiddlewareTest`), wird aber in Phase 1 auf keinen Endpunkt "scharf geschaltet", weil es in dieser Phase noch keine Eltern-only-Aktion gibt (Aufgaben erstellen/bestaetigen kommt erst in Phase 2). Die vollstaendige End-to-End-Demonstration "Kind kann Eltern-Aktion nicht ausfuehren" entsteht automatisch, sobald Phase 2 `POST /api/tasks` hinter `RequireParent` haengt.
+
+## Minispiele (Phase 4)
+
+**Schatzsuche lebt komplett im Frontend** (`features/minigames/TreasureHuntGame.tsx`): 5 fest positionierte "Sandhaufen"-Buttons, die beim Klick das eigentliche Objekt (Emoji + Name) aufdecken. Es gibt keine serverseitige Spiellogik – der Server bekommt nur "abgeschlossen" gemeldet (`POST /api/minigames/{key}/complete`) und kuemmert sich ausschliesslich um Freischaltung, einmalige Belohnung und Wiederholbarkeit. Deshalb bleibt `backend/src/Game/` leer; das ist bewusst so und kein vergessener Ordner.
+
+**Freischaltung ist an Gebaeude gekoppelt, nicht direkt an Aktionen**: `buildings.unlock_minigame_key` zeigt auf `minigames.key`. Wird ein Gebaeude fertig (`BuildingService::contribute()`, `justCompleted === true`), schaltet der gleiche Transaktions-Block automatisch das verknuepfte Minispiel frei (`MinigameRepository::unlockForFamily()`, idempotent per `INSERT OR IGNORE` + `UNIQUE(family_id, minigame_id)`). Kommen spaeter weitere Gebaeude mit eigenen Minispielen dazu, muss an dieser Stelle nichts geaendert werden.
+
+**Schutz vor Farmen**: `family_minigames.first_completion_at` wird nur beim allerersten Abschluss gesetzt (`MinigameRepository::markFirstCompletion()`, per `rowCount()` erkannt – exakt das gleiche Muster wie bei Aufgaben- und Gebaeude-Fertigstellung). Jede weitere Runde liefert `starsAwarded: 0` zurueck; das Spiel selbst bleibt beliebig oft spielbar, es gibt nur keine zusaetzliche Belohnung.
 
 ### Set-Cookie und Secure-Flag im Dev-Proxy
 

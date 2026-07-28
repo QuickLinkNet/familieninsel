@@ -8,6 +8,7 @@ use App\Controllers\ActivityController;
 use App\Controllers\AuthController;
 use App\Controllers\BuildingsController;
 use App\Controllers\HealthController;
+use App\Controllers\MinigamesController;
 use App\Controllers\PlayersController;
 use App\Controllers\ResourcesController;
 use App\Controllers\TasksController;
@@ -20,12 +21,14 @@ use App\Repositories\ActivityLogRepository;
 use App\Repositories\BuildingRepository;
 use App\Repositories\FamilyBuildingRepository;
 use App\Repositories\FamilyRepository;
+use App\Repositories\MinigameRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
 use App\Repositories\TaskRepository;
 use App\Services\AuthService;
 use App\Services\BuildingService;
+use App\Services\MinigameService;
 use App\Services\TaskService;
 use App\Support\Router;
 use App\Support\Session;
@@ -45,10 +48,12 @@ $seeder->seedResourceCatalogIfEmpty();
 $seeder->seedDemoTasksIfEmpty();
 $seeder->seedBuildingCatalogIfEmpty();
 $seeder->seedActiveFamilyBuildingIfEmpty();
+$seeder->seedMinigameCatalogIfEmpty();
 
 $playerRepository = new PlayerRepository($pdo);
 $resourceRepository = new ResourceRepository($pdo);
 $activityLogRepository = new ActivityLogRepository($pdo);
+$minigameRepository = new MinigameRepository($pdo);
 
 $authService = new AuthService(new FamilyRepository($pdo), $playerRepository);
 $authController = new AuthController(
@@ -79,9 +84,19 @@ $buildingService = new BuildingService(
     $resourceRepository,
     new ResourceTransactionRepository($pdo),
     $activityLogRepository,
+    $minigameRepository,
 );
 $buildingsController = new BuildingsController($buildingService);
 $activityController = new ActivityController($activityLogRepository);
+
+$minigameService = new MinigameService(
+    $pdo,
+    $minigameRepository,
+    $resourceRepository,
+    new ResourceTransactionRepository($pdo),
+    $activityLogRepository,
+);
+$minigamesController = new MinigamesController($minigameService);
 
 $router = new Router();
 $router->get('/health', [$healthController, 'show']);
@@ -107,6 +122,10 @@ $router->get('/buildings/active', [$buildingsController, 'active']);
 $router->post('/buildings/{id}/contribute', [$buildingsController, 'contribute']);
 
 $router->get('/activity', [$activityController, 'index']);
+
+$router->get('/minigames', [$minigamesController, 'index']);
+$router->get('/minigames/{key}', [$minigamesController, 'show']);
+$router->post('/minigames/{key}/complete', [$minigamesController, 'complete']);
 
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $scriptDirectory = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');

@@ -415,3 +415,84 @@ input {
   color: var(--text-muted);
   font-size: 0.9em;
 }
+
+.minigame-section {
+  margin-bottom: 24px;
+}
+
+.minigame-section h2 {
+  margin: 0 0 8px;
+}
+
+.minigame-card {
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.minigame-card--locked {
+  opacity: 0.6;
+}
+
+.minigame-locked-hint {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin: 4px 0 0;
+}
+
+.minigame-card > button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.treasure-hunt__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0;
+}
+
+.treasure-hunt__toolbar button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.treasure-hunt__beach {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #cdeffd 0%, #f5e3b3 55%, #e8cf8c 100%);
+  overflow: hidden;
+}
+
+.treasure-spot {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(198, 164, 105, 0.9);
+  font-size: 1.6em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+}
+
+.treasure-spot--found {
+  background: var(--surface);
+  cursor: default;
+}
+
+.treasure-spot--hint {
+  box-shadow: 0 0 0 4px var(--accent);
+}

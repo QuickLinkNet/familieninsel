@@ -36,6 +36,11 @@ vi.mock('../services/activityService', () => ({
   fetchActivity: () => Promise.resolve([]),
 }));
 
+vi.mock('../services/minigameService', () => ({
+  fetchMinigames: () => Promise.resolve([]),
+  completeMinigame: vi.fn(),
+}));
+
 describe('HomePage', () => {
   it('zeigt den Titel und den angemeldeten Spieler', async () => {
     render(

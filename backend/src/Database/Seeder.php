@@ -253,4 +253,25 @@ final class Seeder
         );
         $statement->execute(['family_id' => (int) $familyId, 'building_id' => (int) $buildingId]);
     }
+
+    /**
+     * Legt den Minispiel-Katalog an (aktuell nur die Schatzsuche), aber nur,
+     * wenn er noch leer ist.
+     */
+    public function seedMinigameCatalogIfEmpty(): void
+    {
+        $count = (int) $this->pdo->query('SELECT COUNT(*) FROM minigames')->fetchColumn();
+        if ($count > 0) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO minigames (key, name, description) VALUES (:key, :name, :description)',
+        );
+        $statement->execute([
+            'key' => 'schatzsuche',
+            'name' => 'Schatzsuche am Strand',
+            'description' => 'Finde die versteckten Gegenstaende am Strand.',
+        ]);
+    }
 }

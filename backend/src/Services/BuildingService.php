@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Repositories\ActivityLogRepository;
 use App\Repositories\BuildingRepository;
 use App\Repositories\FamilyBuildingRepository;
+use App\Repositories\MinigameRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
 use PDO;
@@ -21,6 +22,7 @@ final class BuildingService
         private readonly ResourceRepository $resources,
         private readonly ResourceTransactionRepository $transactions,
         private readonly ActivityLogRepository $activityLog,
+        private readonly MinigameRepository $minigames,
     ) {
     }
 
@@ -148,6 +150,20 @@ final class BuildingService
                         'building_completed',
                         sprintf('%s wurde fertiggestellt!', $building['name'] ?? 'Das Gebaeude'),
                     );
+
+                    $unlockMinigameKey = $building['unlock_minigame_key'] ?? null;
+                    if ($unlockMinigameKey !== null) {
+                        $minigame = $this->minigames->findByKey($unlockMinigameKey);
+                        if ($minigame !== null) {
+                            $this->minigames->unlockForFamily($familyId, (int) $minigame['id']);
+                            $this->activityLog->record(
+                                $familyId,
+                                $playerId,
+                                'minigame_unlocked',
+                                sprintf('%s wurde freigeschaltet!', $minigame['name']),
+                            );
+                        }
+                    }
                 }
             }
 

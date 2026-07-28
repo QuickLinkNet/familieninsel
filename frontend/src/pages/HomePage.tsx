@@ -2,21 +2,24 @@ import { useAuth } from '../features/auth/AuthContext';
 import { useTasksAndResources } from '../hooks/useTasksAndResources';
 import { useBuilding } from '../hooks/useBuilding';
 import { useActivity } from '../hooks/useActivity';
+import { useMinigames } from '../hooks/useMinigames';
 import { ResourceBar } from '../features/resources/ResourceBar';
 import { ChildTaskList } from '../features/tasks/ChildTaskList';
 import { ParentTaskDashboard } from '../features/tasks/ParentTaskDashboard';
 import { BuildingProgress } from '../features/island/BuildingProgress';
 import { ActivityFeed } from '../features/island/ActivityFeed';
+import { MinigameSection } from '../features/minigames/MinigameSection';
 
 export function HomePage() {
   const { session, players, logout } = useAuth();
   const { tasks, resources, loading, error, refresh } = useTasksAndResources();
   const { building, loading: buildingLoading, error: buildingError, refresh: refreshBuilding } = useBuilding();
   const { entries, refresh: refreshActivity } = useActivity();
+  const { minigames, loading: minigamesLoading, refresh: refreshMinigames } = useMinigames();
   const currentPlayer = players.find((player) => player.id === session?.playerId) ?? null;
 
   async function refreshAll(): Promise<void> {
-    await Promise.all([refresh(), refreshBuilding(), refreshActivity()]);
+    await Promise.all([refresh(), refreshBuilding(), refreshActivity(), refreshMinigames()]);
   }
 
   return (
@@ -57,6 +60,15 @@ export function HomePage() {
         <p role="alert" className="auth-error">
           {buildingError}
         </p>
+      )}
+
+      {!minigamesLoading && (
+        <MinigameSection
+          minigames={minigames}
+          onChanged={() => {
+            void refreshAll();
+          }}
+        />
       )}
 
       {loading && <p>Lade Aufgaben...</p>}
