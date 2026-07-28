@@ -7,14 +7,21 @@ require __DIR__ . '/../vendor/autoload.php';
 use App\Controllers\AuthController;
 use App\Controllers\HealthController;
 use App\Controllers\PlayersController;
+use App\Controllers\ResourcesController;
+use App\Controllers\TasksController;
 use App\Database\Connection;
 use App\Database\Migrator;
 use App\Database\Seeder;
 use App\Middleware\Cors;
 use App\Middleware\Csrf;
+use App\Repositories\ActivityLogRepository;
 use App\Repositories\FamilyRepository;
 use App\Repositories\PlayerRepository;
+use App\Repositories\ResourceRepository;
+use App\Repositories\ResourceTransactionRepository;
+use App\Repositories\TaskRepository;
 use App\Services\AuthService;
+use App\Services\TaskService;
 use App\Support\Router;
 use App\Support\Session;
 
@@ -27,9 +34,15 @@ Session::start($config['session']);
 
 $pdo = Connection::make($config['database']['path']);
 (new Migrator($pdo, $config['database']['migrations_path']))->run();
-(new Seeder($pdo))->seedDemoFamilyIfEmpty();
+$seeder = new Seeder($pdo);
+$seeder->seedDemoFamilyIfEmpty();
+$seeder->seedResourceCatalogIfEmpty();
+$seeder->seedDemoTasksIfEmpty();
 
-$authService = new AuthService(new FamilyRepository($pdo), new PlayerRepository($pdo));
+$playerRepository = new PlayerRepository($pdo);
+$resourceRepository = new ResourceRepository($pdo);
+
+$authService = new AuthService(new FamilyRepository($pdo), $playerRepository);
 $authController = new AuthController(
     $authService,
     (int) $config['session']['parent_unlock_seconds'],
@@ -40,6 +53,17 @@ $authController = new AuthController(
 $playersController = new PlayersController($authService);
 $healthController = new HealthController($config['database']['path']);
 
+$taskService = new TaskService(
+    $pdo,
+    new TaskRepository($pdo),
+    $resourceRepository,
+    new ResourceTransactionRepository($pdo),
+    new ActivityLogRepository($pdo),
+    $playerRepository,
+);
+$tasksController = new TasksController($taskService);
+$resourcesController = new ResourcesController($resourceRepository);
+
 $router = new Router();
 $router->get('/health', [$healthController, 'show']);
 $router->get('/auth/session', [$authController, 'session']);
@@ -48,6 +72,17 @@ $router->post('/auth/select-profile', [$authController, 'selectProfile']);
 $router->post('/auth/parent-unlock', [$authController, 'parentUnlock']);
 $router->post('/auth/logout', [$authController, 'logout']);
 $router->get('/players', [$playersController, 'index']);
+
+$router->get('/tasks', [$tasksController, 'index']);
+$router->get('/tasks/{id}', [$tasksController, 'show']);
+$router->post('/tasks', [$tasksController, 'store']);
+$router->post('/tasks/{id}/complete', [$tasksController, 'complete']);
+$router->post('/tasks/{id}/approve', [$tasksController, 'approve']);
+$router->post('/tasks/{id}/reject', [$tasksController, 'reject']);
+$router->post('/tasks/{id}/reopen', [$tasksController, 'reopen']);
+$router->delete('/tasks/{id}', [$tasksController, 'destroy']);
+
+$router->get('/resources', [$resourcesController, 'index']);
 
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $scriptDirectory = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');

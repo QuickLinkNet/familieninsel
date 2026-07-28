@@ -36,4 +36,52 @@ final class RouterTest extends TestCase
         self::assertSame(404, http_response_code());
         self::assertSame('NOT_FOUND', $decoded['error']['code']);
     }
+
+    public function testDispatchExtractsPathParameters(): void
+    {
+        $router = new Router();
+        $received = null;
+
+        $router->get('/tasks/{id}', function (array $params) use (&$received): void {
+            $received = $params;
+        });
+
+        $router->dispatch('GET', '/tasks/42');
+
+        self::assertSame(['id' => '42'], $received);
+    }
+
+    public function testDispatchSupportsMultipleSegmentsAfterParameter(): void
+    {
+        $router = new Router();
+        $received = null;
+
+        $router->post('/tasks/{id}/complete', function (array $params) use (&$received): void {
+            $received = $params;
+        });
+
+        $router->dispatch('POST', '/tasks/7/complete');
+
+        self::assertSame(['id' => '7'], $received);
+    }
+
+    public function testPutAndDeleteAreRoutable(): void
+    {
+        $router = new Router();
+        $putCalled = false;
+        $deleteCalled = false;
+
+        $router->put('/tasks/{id}', function () use (&$putCalled): void {
+            $putCalled = true;
+        });
+        $router->delete('/tasks/{id}', function () use (&$deleteCalled): void {
+            $deleteCalled = true;
+        });
+
+        $router->dispatch('PUT', '/tasks/1');
+        $router->dispatch('DELETE', '/tasks/1');
+
+        self::assertTrue($putCalled);
+        self::assertTrue($deleteCalled);
+    }
 }

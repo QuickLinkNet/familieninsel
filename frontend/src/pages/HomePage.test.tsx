@@ -18,6 +18,15 @@ vi.mock('../services/authService', () => ({
   logout: vi.fn(),
 }));
 
+vi.mock('../services/taskService', () => ({
+  fetchTasks: () => Promise.resolve([]),
+  completeTask: vi.fn(),
+}));
+
+vi.mock('../services/resourceService', () => ({
+  fetchResources: () => Promise.resolve([]),
+}));
+
 describe('HomePage', () => {
   it('zeigt den Titel und den angemeldeten Spieler', async () => {
     render(

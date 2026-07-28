@@ -29,17 +29,17 @@ Bewusste Entscheidung (siehe Projekt-Feedback): Es gibt **keinen** lokalen PHP-E
 backend/
 ├── public/           Web-Root des API-Einstiegspunkts (index.php, .htaccess)
 ├── src/
-│   ├── Controllers/   Auth, Players, Health – nimmt Request entgegen, ruft Services, formt JsonResponse
-│   ├── Services/      AuthService (Familiencode/PIN/Profile, keine SQL-Statements)
-│   ├── Repositories/  FamilyRepository, PlayerRepository (einziger Ort mit SQL)
+│   ├── Controllers/   Auth, Players, Tasks, Resources, Health – nimmt Request entgegen, ruft Services, formt JsonResponse
+│   ├── Services/      AuthService, TaskService (Aufgaben-Lebenszyklus + Belohnung, keine SQL-Statements)
+│   ├── Repositories/  Family/Player/Task/Resource/ResourceTransaction/ActivityLog-Repository (einziger Ort mit SQL)
 │   ├── Middleware/     Cors, RequireFamilySession, RequireAuth, RequireParent, Csrf
-│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie)
-│   ├── Support/        JsonResponse, Router, Session, Request, Logger
+│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie, Ressourcen, Demo-Aufgaben)
+│   ├── Support/        JsonResponse, Router (mit {param}-Matching), Session, Request, Logger, Clock
 │   └── Game/            (noch leer – Spiellogik ab Phase 3/4)
 ├── config/            Zentrale Konfiguration (CORS-Origins, DB-Pfad, Session/Security-Werte)
 ├── database/           migrations/ (SQL, auto-angewendet), seeds/ (bisher ungenutzt, Seeding laeuft ueber Seeder.php)
 ├── storage/            database/, logs/, backups/ – nie versioniert, nie deployt überschrieben
-└── tests/              PHPUnit (26 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware)
+└── tests/              PHPUnit (42 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware, TaskService)
 ```
 
 **Namenskonvention bewusst beachtet:** Ordner unter `src/` sind exakt so großgeschrieben wie die PSR-4-Namespace-Segmente (`Controllers`, `Services`, …). Grund: Beim Schwesterprojekt `neighborhood` hat ein Autoloader, der Namespace-Segmente klein schrieb, obwohl die Ordner auf der Platte großgeschrieben waren, auf dem case-insensitiven Windows-Dev-Rechner nie ein Problem gezeigt – auf dem case-sensitiven Linux-Produktivserver aber jeden Request mit 500 quittiert. Hier gibt es diese Diskrepanz gar nicht erst: `composer.json` mappt `App\` 1:1 auf `src/`, ohne Case-Transformation.
@@ -72,14 +72,24 @@ Die Live-API setzt Session-Cookies mit `Secure` (sie laeuft produktiv immer unte
 
 Einheitlich über `App\Support\JsonResponse::success()` / `::error()`, siehe `docs/product-spec.md` Abschnitt 15. Niemals Stacktraces oder interne Pfade nach außen geben.
 
+## Kritische Einschraenkung: SQLite-Version auf dem Produktivserver
+
+Der Produktivserver (Alfahosting) liefert **SQLite 3.7.17 (2013)** aus – bestaetigt per Diagnose-Skript, PHP selbst ist 8.3.31. Das lokale Entwicklungssystem hat eine deutlich neuere SQLite-Version, wodurch ein Kompatibilitaetsproblem beim ersten Live-Test von Phase 2 lokal unsichtbar blieb und erst live als 500-Fehler auffiel.
+
+**Konkret:** `INSERT ... ON CONFLICT (...) DO UPDATE ...` (SQLite-"Upsert", erst ab 3.24.0 verfuegbar) wurde in `ResourceRepository::incrementBalance()` verwendet und brach auf dem Server mit `SQLSTATE[HY000]: General error: 1 near "ON": syntax error` ab, sobald eine Aufgabe bestaetigt wurde. Fix: zwei einfache Anweisungen (`INSERT OR IGNORE` gefolgt von `UPDATE ... SET amount = amount + ...`) statt Upsert-Syntax – funktioniert auf jeder SQLite-Version.
+
+**Regel fuer alle folgenden Phasen:** Keine SQLite-Funktionen verwenden, die neuer als etwa Version 3.8 sind (kein Upsert, keine Window-Functions, kein `RETURNING`, keine generierten Spalten, keine `STRICT`-Tables). Im Zweifel: einfache, klassische SQL-Anweisungen bevorzugen und nach jeder Aenderung an dieser Stelle **live** (nicht nur lokal) testen, da lokale Tests dieses Problem nicht aufdecken.
+
 ## Frontend-Struktur
 
 ```text
 frontend/src/
 ├── app/           App.tsx (Router-Setup)
-├── pages/         Routbare Seiten
-├── features/      auth/ (AuthContext, AuthGate, Login/Profil/PIN-Screens – Phase 1)
-│                  family/, tasks/, resources/, buildings/, island/, minigames/ folgen je Phase
+├── pages/         HomePage (Dashboard: Ressourcen, Kind-/Eltern-Aufgabenansicht)
+├── hooks/         useTasksAndResources (gemeinsames Fetch/Refresh fuer Aufgaben + Ressourcen)
+├── features/      auth/ (Phase 1), tasks/ (Phase 2: TaskCard, ChildTaskList, ParentTaskDashboard, CreateTaskForm),
+│                  resources/ (Phase 2: ResourceBar)
+│                  family/, buildings/, island/, minigames/ folgen je Phase
 ├── components/    Wiederverwendbare, feature-übergreifende UI-Bausteine
 ├── services/      Zentrale API-Abstraktion (api.ts) + feature-spezifische Services
 ├── hooks/         Zustandslogik, sobald benötigt

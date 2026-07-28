@@ -40,6 +40,8 @@ final class MigratorTest extends TestCase
 
         self::assertContains('families', $tables);
         self::assertContains('players', $tables);
+        self::assertContains('tasks', $tables);
+        self::assertContains('resources', $tables);
     }
 
     public function testRunTwiceDoesNotFail(): void
@@ -48,9 +50,12 @@ final class MigratorTest extends TestCase
         $migrator = new Migrator($pdo, $this->migrationsPath);
 
         $migrator->run();
-        $migrator->run();
+        $countAfterFirstRun = (int) $pdo->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn();
 
-        $count = (int) $pdo->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn();
-        self::assertSame(1, $count);
+        $migrator->run();
+        $countAfterSecondRun = (int) $pdo->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn();
+
+        self::assertGreaterThan(0, $countAfterFirstRun);
+        self::assertSame($countAfterFirstRun, $countAfterSecondRun);
     }
 }
