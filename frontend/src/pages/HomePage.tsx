@@ -1,48 +1,31 @@
-import { useEffect, useState } from 'react';
-import { fetchHealth } from '../services/healthService';
-
-type ConnectionState =
-  | { kind: 'loading' }
-  | { kind: 'connected'; time: string }
-  | { kind: 'error'; message: string };
+import { useAuth } from '../features/auth/AuthContext';
 
 export function HomePage() {
-  const [connection, setConnection] = useState<ConnectionState>({ kind: 'loading' });
-
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchHealth()
-      .then((health) => {
-        if (!cancelled) {
-          setConnection({ kind: 'connected', time: health.time });
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
-          setConnection({ kind: 'error', message });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { session, players, logout } = useAuth();
+  const currentPlayer = players.find((player) => player.id === session?.playerId) ?? null;
 
   return (
     <main className="home-page">
-      <h1>Familien-Insel</h1>
-      <p>Projektgrundlage steht. Das Spiel selbst folgt in den naechsten Phasen.</p>
-      <section className="connection-status">
-        {connection.kind === 'loading' && <p>Verbindung zum Backend wird geprueft...</p>}
-        {connection.kind === 'connected' && (
-          <p>Backend erreichbar (Serverzeit: {connection.time})</p>
+      <header className="home-header">
+        <h1>Familien-Insel</h1>
+        {currentPlayer !== null && (
+          <div className="current-player">
+            <span>
+              Angemeldet als <strong>{currentPlayer.name}</strong>
+              {currentPlayer.role === 'parent' ? ' (Elternteil)' : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                void logout();
+              }}
+            >
+              Abmelden
+            </button>
+          </div>
         )}
-        {connection.kind === 'error' && (
-          <p role="alert">Backend nicht erreichbar: {connection.message}</p>
-        )}
-      </section>
+      </header>
+      <p>Die Insel und das Aufgabensystem folgen in den naechsten Phasen.</p>
     </main>
   );
 }

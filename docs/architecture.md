@@ -29,24 +29,44 @@ Bewusste Entscheidung (siehe Projekt-Feedback): Es gibt **keinen** lokalen PHP-E
 backend/
 ├── public/           Web-Root des API-Einstiegspunkts (index.php, .htaccess)
 ├── src/
-│   ├── Controllers/   Nimmt Request entgegen, ruft Services, formt JsonResponse
-│   ├── Services/       (noch leer – Geschäftslogik ab Phase 1)
-│   ├── Repositories/   (noch leer – Datenzugriff ab Phase 1)
-│   ├── Middleware/     Cors (weitere Middleware, z. B. Auth, folgt in Phase 1)
-│   ├── Database/       PDO-Connection-Factory
-│   ├── Support/        JsonResponse, Router (schlanke Eigenbauten, kein Framework)
+│   ├── Controllers/   Auth, Players, Health – nimmt Request entgegen, ruft Services, formt JsonResponse
+│   ├── Services/      AuthService (Familiencode/PIN/Profile, keine SQL-Statements)
+│   ├── Repositories/  FamilyRepository, PlayerRepository (einziger Ort mit SQL)
+│   ├── Middleware/     Cors, RequireFamilySession, RequireAuth, RequireParent, Csrf
+│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie)
+│   ├── Support/        JsonResponse, Router, Session, Request, Logger
 │   └── Game/            (noch leer – Spiellogik ab Phase 3/4)
-├── config/            Zentrale Konfiguration (CORS-Origins, DB-Pfad, Zeitzone)
-├── database/           migrations/, seeds/ (folgen ab Phase 1)
+├── config/            Zentrale Konfiguration (CORS-Origins, DB-Pfad, Session/Security-Werte)
+├── database/           migrations/ (SQL, auto-angewendet), seeds/ (bisher ungenutzt, Seeding laeuft ueber Seeder.php)
 ├── storage/            database/, logs/, backups/ – nie versioniert, nie deployt überschrieben
-└── tests/              PHPUnit
+└── tests/              PHPUnit (26 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware)
 ```
 
 **Namenskonvention bewusst beachtet:** Ordner unter `src/` sind exakt so großgeschrieben wie die PSR-4-Namespace-Segmente (`Controllers`, `Services`, …). Grund: Beim Schwesterprojekt `neighborhood` hat ein Autoloader, der Namespace-Segmente klein schrieb, obwohl die Ordner auf der Platte großgeschrieben waren, auf dem case-insensitiven Windows-Dev-Rechner nie ein Problem gezeigt – auf dem case-sensitiven Linux-Produktivserver aber jeden Request mit 500 quittiert. Hier gibt es diese Diskrepanz gar nicht erst: `composer.json` mappt `App\` 1:1 auf `src/`, ohne Case-Transformation.
 
 ## Routing
 
-`backend/src/Support/Router.php` ist bewusst minimal (exakter Pfad-Match, kein Regex/Parameter-Matching). Für Phase 0 reicht das (`/health`). Sobald Phase 1 Routen mit IDs braucht (`/api/tasks/{id}`), muss der Router um Parameter-Matching erweitert werden – das wurde nicht vorab gebaut, um keine ungenutzte Komplexität einzuführen.
+`backend/src/Support/Router.php` ist bewusst minimal (exakter Pfad-Match, kein Regex/Parameter-Matching). Alle Phase-1-Routen (`/health`, `/auth/*`, `/players`) kommen ohne Pfad-Parameter aus. Sobald Phase 2 Routen mit IDs braucht (`/api/tasks/{id}`), muss der Router um Parameter-Matching erweitert werden – das wurde nicht vorab gebaut, um keine ungenutzte Komplexität einzuführen.
+
+## Authentifizierung & Sessions (Phase 1)
+
+Zweistufiges Session-Modell in `App\Support\Session`:
+
+1. **Familien-Session** (`family-login`): Nach korrektem Familiencode wird nur `family_id` gesetzt und die Session-ID regeneriert (Session-Fixation-Schutz). Damit ist `GET /api/players` bereits nutzbar (Profilauswahl braucht die Liste, bevor ein Profil gewaehlt ist).
+2. **Profil-Session** (`select-profile`): Setzt zusaetzlich `player_id` und `role`. Ab hier greift `RequireAuth`.
+3. **Eltern-Freischaltung** (`parent-unlock`): Nur relevant fuer `role = parent`. Setzt einen Zeitstempel (`parent_unlocked_until`, Default 15 Minuten), geprueft von `RequireParent`. Ein Kind-Profil braucht das nie.
+
+CSRF: `GET /auth/session` liefert immer ein (bei Bedarf neu erzeugtes) `csrfToken` im Body. Das Frontend haengt es bei jedem schreibenden Request als `X-CSRF-Token`-Header an (`services/api.ts`). `App\Middleware\Csrf` prueft das bei allen Nicht-GET-Requests.
+
+Session-Cookie: kein explizites `Domain`-Attribut (funktioniert dadurch sowohl in Produktion als auch ueber den lokalen Vite-Proxy, siehe unten), `SameSite=Lax`, `HttpOnly`, `Secure` nur wenn die Anfrage tatsaechlich per HTTPS reinkam.
+
+**PIN-Sperre ist session-gebunden, nicht global**: `Session::registerFailedPinAttempt()` zaehlt Fehlversuche pro Browser-Session (Default: 5 Versuche, 60s Sperre). Ein Angreifer koennte das durch Loeschen der Cookies umgehen. Fuer die Bedrohungslage dieser privaten Familien-App (keine oeffentliche Erreichbarkeit im eigentlichen Sinn, Ziel ist "neugieriges Kind rät nicht versehentlich die PIN") ausreichend; fuer eine haertere Garantie muesste die Sperre serverseitig pro Player-ID in der DB gefuehrt werden.
+
+**Warum die Rollenpruefung noch keinen echten Business-Endpunkt schuetzt:** `RequireParent` ist fertig und per PHPUnit getestet (`SessionMiddlewareTest`), wird aber in Phase 1 auf keinen Endpunkt "scharf geschaltet", weil es in dieser Phase noch keine Eltern-only-Aktion gibt (Aufgaben erstellen/bestaetigen kommt erst in Phase 2). Die vollstaendige End-to-End-Demonstration "Kind kann Eltern-Aktion nicht ausfuehren" entsteht automatisch, sobald Phase 2 `POST /api/tasks` hinter `RequireParent` haengt.
+
+### Set-Cookie und Secure-Flag im Dev-Proxy
+
+Die Live-API setzt Session-Cookies mit `Secure` (sie laeuft produktiv immer unter HTTPS). Der lokale Vite-Dev-Server liefert die Seite aber ueber `http://localhost` aus – ein `Secure`-Cookie wuerde der Browser dort stillschweigend verwerfen, Sessions wuerden nie persistieren. `vite.config.ts` entfernt deshalb im `proxyRes`-Hook gezielt nur das `Secure`-Attribut aus dem `Set-Cookie`-Header (HttpOnly/SameSite bleiben erhalten). Das betrifft ausschliesslich den lokalen Dev-Betrieb; der Produktions-Build durchlaeuft diesen Code-Pfad nie.
 
 ## API-Antwortformat
 
@@ -58,8 +78,8 @@ Einheitlich über `App\Support\JsonResponse::success()` / `::error()`, siehe `do
 frontend/src/
 ├── app/           App.tsx (Router-Setup)
 ├── pages/         Routbare Seiten
-├── features/      auth/, family/, tasks/, resources/, buildings/, island/, minigames/
-│                  (Ordner angelegt, Inhalt folgt je Phase)
+├── features/      auth/ (AuthContext, AuthGate, Login/Profil/PIN-Screens – Phase 1)
+│                  family/, tasks/, resources/, buildings/, island/, minigames/ folgen je Phase
 ├── components/    Wiederverwendbare, feature-übergreifende UI-Bausteine
 ├── services/      Zentrale API-Abstraktion (api.ts) + feature-spezifische Services
 ├── hooks/         Zustandslogik, sobald benötigt

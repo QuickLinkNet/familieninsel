@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import type { IncomingMessage } from 'node:http'
 
 const apiPath = '/apps/familieninsel/api'
 
@@ -18,6 +19,20 @@ export default defineConfig(({ command }) => ({
         target: 'https://www.red-it.org',
         changeOrigin: true,
         secure: true,
+        configure: (proxy) => {
+          // Die Live-API setzt Session-Cookies mit "Secure" (HTTPS-Produktion).
+          // Der Browser spricht hier aber nur mit http://localhost - ein Secure-Cookie
+          // wuerde dort stillschweigend verworfen. Fuer den Dev-Proxy entfernen wir
+          // das Secure-Attribut, der Rest (HttpOnly, SameSite) bleibt erhalten.
+          proxy.on('proxyRes', (proxyRes: IncomingMessage) => {
+            const setCookie = proxyRes.headers['set-cookie']
+            if (setCookie) {
+              proxyRes.headers['set-cookie'] = setCookie.map((cookie) =>
+                cookie.replace(/;\s*Secure/gi, ''),
+              )
+            }
+          })
+        },
       },
     },
   },
