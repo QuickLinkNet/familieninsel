@@ -80,4 +80,32 @@ final class ResourceRepository
             'now' => $now,
         ]);
     }
+
+    /**
+     * Verringert den Rohstoffbestand einer Familie. Die WHERE-Bedingung
+     * "amount >= :amount" ist ein zusaetzlicher Schutz auf DB-Ebene gegen
+     * negative Bestaende (die Anwendung muss die Verfuegbarkeit trotzdem
+     * vorher pruefen, damit ein Fehlschlag hier nie den Normalfall ist).
+     * Muss innerhalb einer bestehenden Transaktion aufgerufen werden.
+     *
+     * @throws \RuntimeException wenn nicht genug Rohstoffe vorhanden sind
+     */
+    public function decrementBalance(int $familyId, int $resourceId, int $amount): void
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE family_resources SET amount = amount - :amount, updated_at = :now
+             WHERE family_id = :family_id AND resource_id = :resource_id AND amount >= :amount_check',
+        );
+        $statement->execute([
+            'family_id' => $familyId,
+            'resource_id' => $resourceId,
+            'amount' => $amount,
+            'amount_check' => $amount,
+            'now' => Clock::nowIso(),
+        ]);
+
+        if ($statement->rowCount() === 0) {
+            throw new \RuntimeException('Nicht genuegend Rohstoffe vorhanden.');
+        }
+    }
 }

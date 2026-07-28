@@ -183,4 +183,74 @@ final class Seeder
             throw $e;
         }
     }
+
+    /**
+     * Legt den Gebaeude-Katalog an (aktuell nur die Strandhuette), aber nur,
+     * wenn er noch leer ist. Setzt einen befuellten Ressourcen-Katalog voraus.
+     */
+    public function seedBuildingCatalogIfEmpty(): void
+    {
+        $count = (int) $this->pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn();
+        if ($count > 0) {
+            return;
+        }
+
+        $resourcesByKey = [];
+        foreach ($this->pdo->query('SELECT id, key FROM resources')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $resourcesByKey[$row['key']] = (int) $row['id'];
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->exec(
+                "INSERT INTO buildings (key, name, description, unlock_minigame_key)
+                 VALUES ('beach_hut', 'Strandhütte', 'Die erste Unterkunft der Familie auf der Insel.', 'schatzsuche')",
+            );
+            $buildingId = (int) $this->pdo->lastInsertId();
+
+            $costs = ['wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5];
+            $costStatement = $this->pdo->prepare(
+                'INSERT INTO building_costs (building_id, resource_id, required_amount)
+                 VALUES (:building_id, :resource_id, :amount)',
+            );
+
+            foreach ($costs as $resourceKey => $amount) {
+                $resourceId = $resourcesByKey[$resourceKey] ?? null;
+                if ($resourceId === null) {
+                    continue;
+                }
+
+                $costStatement->execute(['building_id' => $buildingId, 'resource_id' => $resourceId, 'amount' => $amount]);
+            }
+
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Startet das aktive Bauprojekt (Strandhuette) fuer die Demo-Familie,
+     * aber nur, wenn noch kein Bauprojekt existiert.
+     */
+    public function seedActiveFamilyBuildingIfEmpty(): void
+    {
+        $count = (int) $this->pdo->query('SELECT COUNT(*) FROM family_buildings')->fetchColumn();
+        if ($count > 0) {
+            return;
+        }
+
+        $familyId = $this->pdo->query('SELECT id FROM families LIMIT 1')->fetchColumn();
+        $buildingId = $this->pdo->query("SELECT id FROM buildings WHERE key = 'beach_hut' LIMIT 1")->fetchColumn();
+        if ($familyId === false || $buildingId === false) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            "INSERT INTO family_buildings (family_id, building_id, status, stage)
+             VALUES (:family_id, :building_id, 'in_progress', 1)",
+        );
+        $statement->execute(['family_id' => (int) $familyId, 'building_id' => (int) $buildingId]);
+    }
 }

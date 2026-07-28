@@ -27,6 +27,15 @@ vi.mock('../services/resourceService', () => ({
   fetchResources: () => Promise.resolve([]),
 }));
 
+vi.mock('../services/buildingService', () => ({
+  fetchActiveBuilding: () => Promise.resolve(null),
+  contributeToBuilding: vi.fn(),
+}));
+
+vi.mock('../services/activityService', () => ({
+  fetchActivity: () => Promise.resolve([]),
+}));
+
 describe('HomePage', () => {
   it('zeigt den Titel und den angemeldeten Spieler', async () => {
     render(

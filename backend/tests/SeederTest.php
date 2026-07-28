@@ -7,6 +7,7 @@ namespace Tests;
 use App\Database\Connection;
 use App\Database\Migrator;
 use App\Database\Seeder;
+use PDO;
 use PHPUnit\Framework\TestCase;
 
 final class SeederTest extends TestCase
@@ -106,5 +107,48 @@ final class SeederTest extends TestCase
 
         $taskCount = (int) $pdo->query('SELECT COUNT(*) FROM tasks')->fetchColumn();
         self::assertSame(5, $taskCount);
+    }
+
+    public function testSeedBuildingCatalogCreatesBeachHutWithFourCosts(): void
+    {
+        $pdo = Connection::make($this->databasePath);
+        $seeder = new Seeder($pdo);
+        $seeder->seedResourceCatalogIfEmpty();
+        $seeder->seedBuildingCatalogIfEmpty();
+
+        $buildingCount = (int) $pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn();
+        $costCount = (int) $pdo->query('SELECT COUNT(*) FROM building_costs')->fetchColumn();
+
+        self::assertSame(1, $buildingCount);
+        self::assertSame(4, $costCount);
+    }
+
+    public function testSeedActiveFamilyBuildingStartsInProgressAtStageOne(): void
+    {
+        $pdo = Connection::make($this->databasePath);
+        $seeder = new Seeder($pdo);
+        $seeder->seedDemoFamilyIfEmpty();
+        $seeder->seedResourceCatalogIfEmpty();
+        $seeder->seedBuildingCatalogIfEmpty();
+        $seeder->seedActiveFamilyBuildingIfEmpty();
+
+        $row = $pdo->query('SELECT status, stage FROM family_buildings LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+
+        self::assertSame('in_progress', $row['status']);
+        self::assertSame(1, (int) $row['stage']);
+    }
+
+    public function testSeedActiveFamilyBuildingIsIdempotent(): void
+    {
+        $pdo = Connection::make($this->databasePath);
+        $seeder = new Seeder($pdo);
+        $seeder->seedDemoFamilyIfEmpty();
+        $seeder->seedResourceCatalogIfEmpty();
+        $seeder->seedBuildingCatalogIfEmpty();
+        $seeder->seedActiveFamilyBuildingIfEmpty();
+        $seeder->seedActiveFamilyBuildingIfEmpty();
+
+        $count = (int) $pdo->query('SELECT COUNT(*) FROM family_buildings')->fetchColumn();
+        self::assertSame(1, $count);
     }
 }

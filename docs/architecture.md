@@ -29,24 +29,24 @@ Bewusste Entscheidung (siehe Projekt-Feedback): Es gibt **keinen** lokalen PHP-E
 backend/
 ├── public/           Web-Root des API-Einstiegspunkts (index.php, .htaccess)
 ├── src/
-│   ├── Controllers/   Auth, Players, Tasks, Resources, Health – nimmt Request entgegen, ruft Services, formt JsonResponse
-│   ├── Services/      AuthService, TaskService (Aufgaben-Lebenszyklus + Belohnung, keine SQL-Statements)
-│   ├── Repositories/  Family/Player/Task/Resource/ResourceTransaction/ActivityLog-Repository (einziger Ort mit SQL)
+│   ├── Controllers/   Auth, Players, Tasks, Resources, Buildings, Activity, Health
+│   ├── Services/      AuthService, TaskService, BuildingService (Geschaeftslogik, keine SQL-Statements)
+│   ├── Repositories/  Family/Player/Task/Resource/ResourceTransaction/ActivityLog/Building/FamilyBuilding-Repository (einziger Ort mit SQL)
 │   ├── Middleware/     Cors, RequireFamilySession, RequireAuth, RequireParent, Csrf
-│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie, Ressourcen, Demo-Aufgaben)
+│   ├── Database/       Connection (PDO-Factory), Migrator (Auto-Migrate), Seeder (Demo-Familie, Ressourcen, Demo-Aufgaben, Strandhuette)
 │   ├── Support/        JsonResponse, Router (mit {param}-Matching), Session, Request, Logger, Clock
-│   └── Game/            (noch leer – Spiellogik ab Phase 3/4)
+│   └── Game/            (noch leer – Spiellogik ab Phase 5, Schatzsuche)
 ├── config/            Zentrale Konfiguration (CORS-Origins, DB-Pfad, Session/Security-Werte)
 ├── database/           migrations/ (SQL, auto-angewendet), seeds/ (bisher ungenutzt, Seeding laeuft ueber Seeder.php)
 ├── storage/            database/, logs/, backups/ – nie versioniert, nie deployt überschrieben
-└── tests/              PHPUnit (42 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware, TaskService)
+└── tests/              PHPUnit (52 Tests: Connection, Router, JsonResponse, Migrator, Seeder, AuthService, Session/Middleware, TaskService, BuildingService)
 ```
 
 **Namenskonvention bewusst beachtet:** Ordner unter `src/` sind exakt so großgeschrieben wie die PSR-4-Namespace-Segmente (`Controllers`, `Services`, …). Grund: Beim Schwesterprojekt `neighborhood` hat ein Autoloader, der Namespace-Segmente klein schrieb, obwohl die Ordner auf der Platte großgeschrieben waren, auf dem case-insensitiven Windows-Dev-Rechner nie ein Problem gezeigt – auf dem case-sensitiven Linux-Produktivserver aber jeden Request mit 500 quittiert. Hier gibt es diese Diskrepanz gar nicht erst: `composer.json` mappt `App\` 1:1 auf `src/`, ohne Case-Transformation.
 
 ## Routing
 
-`backend/src/Support/Router.php` ist bewusst minimal (exakter Pfad-Match, kein Regex/Parameter-Matching). Alle Phase-1-Routen (`/health`, `/auth/*`, `/players`) kommen ohne Pfad-Parameter aus. Sobald Phase 2 Routen mit IDs braucht (`/api/tasks/{id}`), muss der Router um Parameter-Matching erweitert werden – das wurde nicht vorab gebaut, um keine ungenutzte Komplexität einzuführen.
+`backend/src/Support/Router.php` unterstuetzt seit Phase 2 einfaches `{param}`-Matching (ein Platzhalter pro Segment, keine Regex-Constraints). Wurde bewusst erst eingebaut, als die ersten Routen mit IDs (`/tasks/{id}/...`) tatsaechlich gebraucht wurden, nicht vorab.
 
 ## Authentifizierung & Sessions (Phase 1)
 
@@ -61,6 +61,16 @@ CSRF: `GET /auth/session` liefert immer ein (bei Bedarf neu erzeugtes) `csrfToke
 Session-Cookie: kein explizites `Domain`-Attribut (funktioniert dadurch sowohl in Produktion als auch ueber den lokalen Vite-Proxy, siehe unten), `SameSite=Lax`, `HttpOnly`, `Secure` nur wenn die Anfrage tatsaechlich per HTTPS reinkam.
 
 **PIN-Sperre ist session-gebunden, nicht global**: `Session::registerFailedPinAttempt()` zaehlt Fehlversuche pro Browser-Session (Default: 5 Versuche, 60s Sperre). Ein Angreifer koennte das durch Loeschen der Cookies umgehen. Fuer die Bedrohungslage dieser privaten Familien-App (keine oeffentliche Erreichbarkeit im eigentlichen Sinn, Ziel ist "neugieriges Kind rät nicht versehentlich die PIN") ausreichend; fuer eine haertere Garantie muesste die Sperre serverseitig pro Player-ID in der DB gefuehrt werden.
+
+## Bausystem (Phase 3)
+
+MVP-Annahme: **hoechstens ein Bauprojekt pro Familie insgesamt** (nicht nur "gleichzeitig aktiv") – `FamilyBuildingRepository::findForFamily()` liefert schlicht die neueste Zeile. Sobald spaeter mehrere Gebaeude/Bauauswahl noetig sind, muss das um eine echte Auswahl-/Start-Logik erweitert werden (aktuell startet die Strandhuette automatisch beim ersten Request ueber `Seeder::seedActiveFamilyBuildingIfEmpty()`).
+
+**Baustufen-Berechnung** (`BuildingService::calculateStage()`): rein prozentual auf Basis der Gesamtsumme aller Rohstoffe (nicht pro Rohstoffart), 5 Stufen: 0 % = Bauplatz, 1–33 % = Fundament, 34–66 % = Waende, 67–99 % = Dach, 100 % = fertig. Einfache, bewusst grobe Heuristik statt einer Konfigurationstabelle pro Baustufe – ausreichend fuer ein einzelnes Gebaeude mit vier Rohstoffarten.
+
+**Einzahlung wird auf den Restbedarf gedeckelt**: Zahlt ein Elternteil mehr von einem Rohstoff ein, als das Gebaeude noch braucht (z. B. 100 Holz bei nur 12 fehlenden), zieht der Server nur die tatsaechlich benoetigte Menge ab (`min(angefragt, restbedarf)`). Verhindert versehentliche Verschwendung, ohne dass das Frontend selbst rechnen muesste; das "Alle verfuegbaren Rohstoffe einsetzen" im Frontend nutzt das aus, indem es einfach den vollen Kontostand vorschlaegt.
+
+Fertigstellung ist wie bei Aufgaben-Belohnungen doppelt abgesichert: `FamilyBuildingRepository::markCompleted()` aktualisiert nur, wenn `status = 'in_progress'` (per `rowCount()` geprueft) – ein zweiter Abschluss-Versuch (oder ein Race) kann daher nie zweimal den "Gebaeude fertiggestellt"-Tagebucheintrag erzeugen.
 
 **Warum die Rollenpruefung noch keinen echten Business-Endpunkt schuetzt:** `RequireParent` ist fertig und per PHPUnit getestet (`SessionMiddlewareTest`), wird aber in Phase 1 auf keinen Endpunkt "scharf geschaltet", weil es in dieser Phase noch keine Eltern-only-Aktion gibt (Aufgaben erstellen/bestaetigen kommt erst in Phase 2). Die vollstaendige End-to-End-Demonstration "Kind kann Eltern-Aktion nicht ausfuehren" entsteht automatisch, sobald Phase 2 `POST /api/tasks` hinter `RequireParent` haengt.
 

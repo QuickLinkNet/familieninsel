@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use App\Controllers\ActivityController;
 use App\Controllers\AuthController;
+use App\Controllers\BuildingsController;
 use App\Controllers\HealthController;
 use App\Controllers\PlayersController;
 use App\Controllers\ResourcesController;
@@ -15,12 +17,15 @@ use App\Database\Seeder;
 use App\Middleware\Cors;
 use App\Middleware\Csrf;
 use App\Repositories\ActivityLogRepository;
+use App\Repositories\BuildingRepository;
+use App\Repositories\FamilyBuildingRepository;
 use App\Repositories\FamilyRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
 use App\Repositories\TaskRepository;
 use App\Services\AuthService;
+use App\Services\BuildingService;
 use App\Services\TaskService;
 use App\Support\Router;
 use App\Support\Session;
@@ -38,9 +43,12 @@ $seeder = new Seeder($pdo);
 $seeder->seedDemoFamilyIfEmpty();
 $seeder->seedResourceCatalogIfEmpty();
 $seeder->seedDemoTasksIfEmpty();
+$seeder->seedBuildingCatalogIfEmpty();
+$seeder->seedActiveFamilyBuildingIfEmpty();
 
 $playerRepository = new PlayerRepository($pdo);
 $resourceRepository = new ResourceRepository($pdo);
+$activityLogRepository = new ActivityLogRepository($pdo);
 
 $authService = new AuthService(new FamilyRepository($pdo), $playerRepository);
 $authController = new AuthController(
@@ -58,11 +66,22 @@ $taskService = new TaskService(
     new TaskRepository($pdo),
     $resourceRepository,
     new ResourceTransactionRepository($pdo),
-    new ActivityLogRepository($pdo),
+    $activityLogRepository,
     $playerRepository,
 );
 $tasksController = new TasksController($taskService);
 $resourcesController = new ResourcesController($resourceRepository);
+
+$buildingService = new BuildingService(
+    $pdo,
+    new BuildingRepository($pdo),
+    new FamilyBuildingRepository($pdo),
+    $resourceRepository,
+    new ResourceTransactionRepository($pdo),
+    $activityLogRepository,
+);
+$buildingsController = new BuildingsController($buildingService);
+$activityController = new ActivityController($activityLogRepository);
 
 $router = new Router();
 $router->get('/health', [$healthController, 'show']);
@@ -83,6 +102,11 @@ $router->post('/tasks/{id}/reopen', [$tasksController, 'reopen']);
 $router->delete('/tasks/{id}', [$tasksController, 'destroy']);
 
 $router->get('/resources', [$resourcesController, 'index']);
+
+$router->get('/buildings/active', [$buildingsController, 'active']);
+$router->post('/buildings/{id}/contribute', [$buildingsController, 'contribute']);
+
+$router->get('/activity', [$activityController, 'index']);
 
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $scriptDirectory = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
