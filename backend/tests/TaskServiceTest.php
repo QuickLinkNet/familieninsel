@@ -242,4 +242,31 @@ final class TaskServiceTest extends TestCase
         $tasksForParent = $this->taskService->listTasksForPlayer($this->familyId, 'parent', $this->manuelId);
         self::assertCount(2, $tasksForParent);
     }
+
+    public function testCreateTaskRejectsTooLongDescription(): void
+    {
+        $result = $this->taskService->createTask(
+            $this->familyId,
+            $this->kathrinId,
+            $this->emilId,
+            'Titel',
+            str_repeat('a', 2001),
+            null,
+            ['wood' => 1],
+        );
+
+        self::assertFalse($result['success']);
+        self::assertSame('VALIDATION_ERROR', $result['code']);
+    }
+
+    public function testRejectTaskRejectsTooLongParentNote(): void
+    {
+        $taskId = $this->createTask($this->emilId);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+
+        $result = $this->taskService->rejectTask($taskId, $this->familyId, str_repeat('a', 501));
+
+        self::assertFalse($result['success']);
+        self::assertSame('VALIDATION_ERROR', $result['code']);
+    }
 }

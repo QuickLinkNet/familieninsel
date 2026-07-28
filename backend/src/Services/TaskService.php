@@ -42,6 +42,10 @@ final class TaskService
             return $this->validationError('Bitte einen gueltigen Titel angeben (1-120 Zeichen).');
         }
 
+        if ($description !== null && mb_strlen($description) > 2000) {
+            return $this->validationError('Die Beschreibung darf hoechstens 2000 Zeichen lang sein.');
+        }
+
         if ($this->players->findActiveByIdAndFamily($assignedPlayerId, $familyId) === null) {
             return ['success' => false, 'code' => 'PLAYER_NOT_FOUND', 'message' => 'Das zugewiesene Familienmitglied wurde nicht gefunden.'];
         }
@@ -176,6 +180,10 @@ final class TaskService
      */
     public function rejectTask(int $taskId, int $familyId, ?string $parentNote): array
     {
+        if ($parentNote !== null && mb_strlen($parentNote) > 500) {
+            return $this->validationError('Die Notiz darf hoechstens 500 Zeichen lang sein.');
+        }
+
         $task = $this->tasks->findByIdAndFamily($taskId, $familyId);
         if ($task === null) {
             return $this->notFound();

@@ -51,6 +51,8 @@ npm run deploy
 
 Lädt ausschließlich nach `/html/apps/familieninsel` auf `www.red-it.org` hoch (Alfahosting, FTPS). Persistente Daten (`backend/storage/`) werden dabei nie überschrieben. `.env.deploy` ist gitignored und enthält Zugangsdaten – niemals committen.
 
+Ausführliche Anleitung für Neuinstallation, Datenbank-Backup/Restore und Sicherheitscheck: [`docs/deployment.md`](docs/deployment.md).
+
 ## Projektstruktur
 
 ```text

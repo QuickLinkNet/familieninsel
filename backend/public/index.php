@@ -30,12 +30,26 @@ use App\Services\AuthService;
 use App\Services\BuildingService;
 use App\Services\MinigameService;
 use App\Services\TaskService;
+use App\Support\JsonResponse;
+use App\Support\Logger;
 use App\Support\Router;
 use App\Support\Session;
 
 $config = require __DIR__ . '/../config/config.php';
 
 date_default_timezone_set($config['app']['timezone']);
+
+// Sicherheitsnetz: Eine unerwartete Ausnahme darf niemals einen rohen
+// PHP-Fehler (Stacktrace, Dateipfade) an den Client durchreichen. Wird
+// zusaetzlich zur serverseitigen display_errors=off-Konfiguration gehalten,
+// damit die API auch bei falscher Serverkonfiguration ein sicheres JSON liefert.
+set_exception_handler(static function (\Throwable $exception) use ($config): void {
+    Logger::security(
+        dirname($config['database']['path']) . '/../logs',
+        'Unbehandelte Ausnahme: ' . get_class($exception) . ': ' . $exception->getMessage(),
+    );
+    JsonResponse::error(500, 'INTERNAL_ERROR', 'Es ist ein unerwarteter Fehler aufgetreten.');
+});
 
 Cors::handle($config['cors']['allowed_origins']);
 Session::start($config['session']);

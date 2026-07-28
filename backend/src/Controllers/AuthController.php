@@ -86,6 +86,12 @@ final class AuthController
 
         $pin = (string) (Request::jsonBody()['pin'] ?? '');
 
+        if ($pin === '' || strlen($pin) > 16) {
+            JsonResponse::error(422, 'VALIDATION_ERROR', 'Bitte eine gueltige PIN eingeben.');
+
+            return;
+        }
+
         if (!$this->authService->verifyParentPin($playerId, $familyId, $pin)) {
             Session::registerFailedPinAttempt($this->pinMaxAttempts, $this->pinLockoutSeconds);
             Logger::security($this->logDirectory, "Fehlgeschlagener Eltern-PIN-Versuch fuer player_id={$playerId}");
