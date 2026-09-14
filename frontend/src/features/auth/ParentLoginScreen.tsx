@@ -5,6 +5,8 @@ import { PinDots } from './PinDots';
 import { PinKeypad } from './PinKeypad';
 import manuelIcon from '../../assets/island/parent-icon-manuel.webp';
 import kathrinIcon from '../../assets/island/parent-icon-kathrin.webp';
+import manuelAvatarIcon from '../../assets/island/parent-icon-manuel-avatar.webp';
+import kathrinAvatarIcon from '../../assets/island/parent-icon-kathrin-avatar.webp';
 import './parent-login.css';
 
 // Handgefertigte Icons je Elternteil (Name + "Elternteil" sind bereits im Bild
@@ -13,6 +15,14 @@ import './parent-login.css';
 const PARENT_ICONS: Record<string, string> = {
   manuel: manuelIcon,
   kathrin: kathrinIcon,
+};
+
+// Nur das runde Medaillon ohne Holzschild-Namensschild (das steht im
+// PIN-Panel schon als eigene Ueberschrift darunter) - fuer den kleinen
+// Avatar oben im PIN-Panel.
+const PARENT_AVATAR_ICONS: Record<string, string> = {
+  manuel: manuelAvatarIcon,
+  kathrin: kathrinAvatarIcon,
 };
 
 const PIN_LENGTH = 4;
@@ -190,13 +200,24 @@ export function ParentLoginScreen() {
         )}
 
         {selectedParent !== null && (
-          <PlayerAvatar
-            playerId={selectedParent.id}
-            name={selectedParent.name}
-            role="parent"
-            hasPhoto={false}
-            size={96}
-          />
+          <>
+            {PARENT_AVATAR_ICONS[selectedParent.avatarKey] !== undefined ? (
+              <img
+                src={PARENT_AVATAR_ICONS[selectedParent.avatarKey]}
+                alt=""
+                aria-hidden="true"
+                className="pin-panel__avatar"
+              />
+            ) : (
+              <PlayerAvatar
+                playerId={selectedParent.id}
+                name={selectedParent.name}
+                role="parent"
+                hasPhoto={false}
+                size={96}
+              />
+            )}
+          </>
         )}
 
         <h1 className="auth-panel__title pin-panel__name">{selectedParent?.name}</h1>
