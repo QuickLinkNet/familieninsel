@@ -6,11 +6,19 @@ export interface Player {
   age: number | null;
   role: PlayerRole;
   avatarKey: string;
+  hasPhoto: boolean;
 }
 
-export interface Family {
+export interface ParentCandidate {
   id: number;
   name: string;
+  age: number | null;
+  role: PlayerRole;
+  avatarKey: string;
+}
+
+export interface ManagedPlayer extends Player {
+  isActive: boolean;
 }
 
 export interface SessionState {
@@ -18,6 +26,5 @@ export interface SessionState {
   familyId: number | null;
   playerId: number | null;
   playerRole: PlayerRole | null;
-  parentUnlocked: boolean;
   csrfToken: string;
 }

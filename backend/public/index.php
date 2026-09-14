@@ -9,6 +9,7 @@ use App\Controllers\AuthController;
 use App\Controllers\BuildingsController;
 use App\Controllers\HealthController;
 use App\Controllers\MinigamesController;
+use App\Controllers\PlayerPhotoController;
 use App\Controllers\PlayersController;
 use App\Controllers\ResourcesController;
 use App\Controllers\TasksController;
@@ -22,6 +23,7 @@ use App\Repositories\BuildingRepository;
 use App\Repositories\FamilyBuildingRepository;
 use App\Repositories\FamilyRepository;
 use App\Repositories\MinigameRepository;
+use App\Repositories\PlayerLoginTokenRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
@@ -29,6 +31,8 @@ use App\Repositories\TaskRepository;
 use App\Services\AuthService;
 use App\Services\BuildingService;
 use App\Services\MinigameService;
+use App\Services\PlayerPhotoService;
+use App\Services\PlayerService;
 use App\Services\TaskService;
 use App\Support\JsonResponse;
 use App\Support\Logger;
@@ -63,21 +67,29 @@ $seeder->seedDemoTasksIfEmpty();
 $seeder->seedBuildingCatalogIfEmpty();
 $seeder->seedActiveFamilyBuildingIfEmpty();
 $seeder->seedMinigameCatalogIfEmpty();
+$seeder->seedWatchtowerBuildingIfMissing();
+$seeder->seedWatchtowerUnlockForCompletedBeachHuts();
+$seeder->seedParentPinsIfMissing();
+$seeder->seedParentPinsFromLegacyPasswords();
 
 $playerRepository = new PlayerRepository($pdo);
+$playerLoginTokenRepository = new PlayerLoginTokenRepository($pdo);
 $resourceRepository = new ResourceRepository($pdo);
 $activityLogRepository = new ActivityLogRepository($pdo);
 $minigameRepository = new MinigameRepository($pdo);
 
-$authService = new AuthService(new FamilyRepository($pdo), $playerRepository);
+$authService = new AuthService(new FamilyRepository($pdo), $playerRepository, $playerLoginTokenRepository);
 $authController = new AuthController(
     $authService,
-    (int) $config['session']['parent_unlock_seconds'],
-    (int) $config['security']['pin_max_attempts'],
-    (int) $config['security']['pin_lockout_seconds'],
+    (int) $config['security']['login_max_attempts'],
+    (int) $config['security']['login_lockout_seconds'],
+    (int) $config['session']['child_session_lifetime_seconds'],
     dirname($config['database']['path']) . '/../logs',
 );
-$playersController = new PlayersController($authService);
+$photoService = new PlayerPhotoService(dirname($config['database']['path']) . '/../photos');
+$playerService = new PlayerService($pdo, $playerRepository, $playerLoginTokenRepository);
+$playersController = new PlayersController($authService, $photoService, $playerService);
+$playerPhotoController = new PlayerPhotoController($photoService, $playerRepository);
 $healthController = new HealthController($config['database']['path']);
 
 $taskService = new TaskService(
@@ -115,11 +127,22 @@ $minigamesController = new MinigamesController($minigameService);
 $router = new Router();
 $router->get('/health', [$healthController, 'show']);
 $router->get('/auth/session', [$authController, 'session']);
-$router->post('/auth/family-login', [$authController, 'familyLogin']);
-$router->post('/auth/select-profile', [$authController, 'selectProfile']);
-$router->post('/auth/parent-unlock', [$authController, 'parentUnlock']);
+$router->get('/auth/parents', [$authController, 'parents']);
+$router->post('/auth/parent-login', [$authController, 'parentLogin']);
+$router->post('/auth/qr-login', [$authController, 'qrLogin']);
 $router->post('/auth/logout', [$authController, 'logout']);
 $router->get('/players', [$playersController, 'index']);
+$router->post('/players', [$playersController, 'store']);
+$router->get('/players/manage', [$playersController, 'manage']);
+$router->put('/players/{id}', [$playersController, 'update']);
+$router->post('/players/{id}/pin', [$playersController, 'setPin']);
+$router->post('/players/{id}/activate', [$playersController, 'activate']);
+$router->post('/players/{id}/deactivate', [$playersController, 'deactivate']);
+$router->get('/players/{id}/login-token', [$playersController, 'loginTokenStatus']);
+$router->post('/players/{id}/login-token', [$playersController, 'regenerateLoginToken']);
+$router->delete('/players/{id}/login-token', [$playersController, 'revokeLoginToken']);
+$router->get('/players/{id}/photo', [$playerPhotoController, 'show']);
+$router->post('/players/{id}/photo', [$playerPhotoController, 'upload']);
 
 $router->get('/tasks', [$tasksController, 'index']);
 $router->get('/tasks/{id}', [$tasksController, 'show']);
@@ -132,7 +155,7 @@ $router->delete('/tasks/{id}', [$tasksController, 'destroy']);
 
 $router->get('/resources', [$resourcesController, 'index']);
 
-$router->get('/buildings/active', [$buildingsController, 'active']);
+$router->get('/buildings', [$buildingsController, 'index']);
 $router->post('/buildings/{id}/contribute', [$buildingsController, 'contribute']);
 
 $router->get('/activity', [$activityController, 'index']);

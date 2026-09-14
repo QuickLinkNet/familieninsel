@@ -17,20 +17,15 @@ final class BuildingsController
     {
     }
 
-    public function active(): void
+    public function index(): void
     {
         if (!RequireAuth::check()) {
             return;
         }
 
-        $building = $this->buildingService->getActiveBuildingForFamily((int) Session::familyId());
-        if ($building === null) {
-            JsonResponse::error(404, 'BUILDING_NOT_FOUND', 'Kein aktives Bauprojekt gefunden.');
+        $buildings = $this->buildingService->getBuildingsForFamily((int) Session::familyId());
 
-            return;
-        }
-
-        JsonResponse::success(['building' => $building]);
+        JsonResponse::success(['buildings' => $buildings]);
     }
 
     /**
@@ -43,17 +38,10 @@ final class BuildingsController
         }
 
         $familyId = (int) Session::familyId();
-        $active = $this->buildingService->getActiveBuildingForFamily($familyId);
-        if ($active === null || $active['id'] !== (int) $params['id']) {
-            JsonResponse::error(404, 'BUILDING_NOT_FOUND', 'Kein passendes Bauprojekt gefunden.');
-
-            return;
-        }
-
         $body = Request::jsonBody();
         $amounts = is_array($body['amounts'] ?? null) ? $body['amounts'] : [];
 
-        $result = $this->buildingService->contribute($familyId, (int) Session::playerId(), $amounts);
+        $result = $this->buildingService->contribute($familyId, (int) Session::playerId(), (int) $params['id'], $amounts);
 
         if (!$result['success']) {
             $statusCode = match ($result['code']) {

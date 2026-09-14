@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import type { Player } from '../../types/auth';
 import { createTask } from '../../services/taskService';
 import { ApiError } from '../../types/api';
+import { ResourceIcon } from '../resources/ResourceIcon';
 
 interface CreateTaskFormProps {
   players: Player[];
@@ -81,7 +82,10 @@ export function CreateTaskForm({ players, onCreated }: CreateTaskFormProps) {
         <legend>Belohnung</legend>
         {REWARD_RESOURCE_KEYS.map(({ key, label }) => (
           <label key={key} className="reward-input">
-            {label}
+            <span className="reward-input__label">
+              <ResourceIcon resourceKey={key} className="reward-input__icon" />
+              {label}
+            </span>
             <input
               type="number"
               min={0}

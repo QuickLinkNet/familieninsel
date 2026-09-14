@@ -21,12 +21,6 @@ final class RequireParent
             return false;
         }
 
-        if (!Session::isParentUnlocked()) {
-            JsonResponse::error(403, 'PARENT_PIN_REQUIRED', 'Bitte zuerst die Eltern-PIN eingeben.');
-
-            return false;
-        }
-
         return true;
     }
 }

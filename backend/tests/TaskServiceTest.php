@@ -9,6 +9,7 @@ use App\Database\Migrator;
 use App\Database\Seeder;
 use App\Repositories\ActivityLogRepository;
 use App\Repositories\FamilyRepository;
+use App\Repositories\PlayerLoginTokenRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
@@ -40,7 +41,11 @@ final class TaskServiceTest extends TestCase
         $seeder->seedDemoFamilyIfEmpty();
         $seeder->seedResourceCatalogIfEmpty();
 
-        $authService = new AuthService(new FamilyRepository($this->pdo), new PlayerRepository($this->pdo));
+        $authService = new AuthService(
+            new FamilyRepository($this->pdo),
+            new PlayerRepository($this->pdo),
+            new PlayerLoginTokenRepository($this->pdo),
+        );
         $this->familyId = (int) $this->pdo->query('SELECT id FROM families LIMIT 1')->fetchColumn();
         $players = $authService->listActivePlayers($this->familyId);
         $byName = [];

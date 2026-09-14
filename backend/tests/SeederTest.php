@@ -63,10 +63,15 @@ final class SeederTest extends TestCase
         self::assertTrue(password_verify('INSEL2026', (string) $familyCodeHash));
         self::assertFalse(password_verify('falsch', (string) $familyCodeHash));
 
-        $parentPinHash = $pdo->query(
-            "SELECT parent_pin_hash FROM players WHERE role = 'parent' LIMIT 1",
+        $manuelPinHash = $pdo->query(
+            "SELECT password_hash FROM players WHERE name = 'Manuel' LIMIT 1",
         )->fetchColumn();
-        self::assertTrue(password_verify('2580', (string) $parentPinHash));
+        self::assertTrue(password_verify('2026', (string) $manuelPinHash));
+
+        $kathrinPinHash = $pdo->query(
+            "SELECT password_hash FROM players WHERE name = 'Kathrin' LIMIT 1",
+        )->fetchColumn();
+        self::assertTrue(password_verify('2580', (string) $kathrinPinHash));
     }
 
     public function testSeedResourceCatalogCreatesFiveResources(): void

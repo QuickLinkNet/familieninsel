@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Repositories\FamilyRepository;
+use App\Repositories\PlayerLoginTokenRepository;
 use App\Repositories\PlayerRepository;
 
 final class AuthService
@@ -12,20 +13,8 @@ final class AuthService
     public function __construct(
         private readonly FamilyRepository $families,
         private readonly PlayerRepository $players,
+        private readonly PlayerLoginTokenRepository $loginTokens,
     ) {
-    }
-
-    /**
-     * @return array{id: int, name: string}|null
-     */
-    public function verifyFamilyCode(string $code): ?array
-    {
-        $family = $this->families->findSoleFamily();
-        if ($family === null || !password_verify($code, $family['family_code_hash'])) {
-            return null;
-        }
-
-        return ['id' => $family['id'], 'name' => $family['name']];
     }
 
     /**
@@ -37,27 +26,73 @@ final class AuthService
     }
 
     /**
-     * @return array{id: int, name: string, age: int|null, role: string, avatar_key: string}|null
+     * Fuer den Eltern-Login-Bildschirm: welche Eltern-Profile stehen zur
+     * Auswahl, bevor ueberhaupt eine Session existiert. MVP hat genau eine
+     * Familie pro Installation, daher ohne Familiencode auflösbar.
+     *
+     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string}>
      */
-    public function findSelectableProfile(int $playerId, int $familyId): ?array
+    public function listParentCandidates(): array
     {
-        $player = $this->players->findActiveByIdAndFamily($playerId, $familyId);
+        $family = $this->families->findSoleFamily();
+        if ($family === null) {
+            return [];
+        }
+
+        return $this->players->findActiveParentsByFamily((int) $family['id']);
+    }
+
+    /**
+     * @return array{id: int, familyId: int, role: string, name: string, age: int|null, avatar_key: string}|null
+     */
+    public function verifyParentPin(int $playerId, string $pin): ?array
+    {
+        $family = $this->families->findSoleFamily();
+        if ($family === null) {
+            return null;
+        }
+
+        $player = $this->players->findActiveByIdAndFamily($playerId, (int) $family['id']);
+        if ($player === null || $player['role'] !== 'parent' || $player['password_hash'] === null) {
+            return null;
+        }
+
+        if (!password_verify($pin, $player['password_hash'])) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $player['id'],
+            'familyId' => (int) $family['id'],
+            'role' => $player['role'],
+            'name' => $player['name'],
+            'age' => $player['age'] !== null ? (int) $player['age'] : null,
+            'avatar_key' => $player['avatar_key'],
+        ];
+    }
+
+    /**
+     * Prueft einen QR-Login-Token und liefert bei Erfolg das zugehoerige
+     * Spielerprofil. Der Token selbst wird nie im Klartext gespeichert -
+     * lediglich sein SHA-256-Hash steht in der Datenbank (siehe
+     * PlayerService::generateLoginToken).
+     *
+     * @return array{id: int, family_id: int, name: string, age: int|null, role: string, avatar_key: string}|null
+     */
+    public function verifyLoginToken(string $rawToken): ?array
+    {
+        $tokenRecord = $this->loginTokens->findActiveByTokenHash(hash('sha256', $rawToken));
+        if ($tokenRecord === null) {
+            return null;
+        }
+
+        $player = $this->players->findActiveById((int) $tokenRecord['player_id']);
         if ($player === null) {
             return null;
         }
 
-        unset($player['parent_pin_hash'], $player['family_id']);
+        $this->loginTokens->markUsed((int) $tokenRecord['id']);
 
         return $player;
-    }
-
-    public function verifyParentPin(int $playerId, int $familyId, string $pin): bool
-    {
-        $player = $this->players->findActiveByIdAndFamily($playerId, $familyId);
-        if ($player === null || $player['role'] !== 'parent' || $player['parent_pin_hash'] === null) {
-            return false;
-        }
-
-        return password_verify($pin, $player['parent_pin_hash']);
     }
 }

@@ -27,34 +27,30 @@ final class BuildingService
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array<int, array<string, mixed>>
      */
-    public function getActiveBuildingForFamily(int $familyId): ?array
+    public function getBuildingsForFamily(int $familyId): array
     {
-        $familyBuilding = $this->familyBuildings->findForFamily($familyId);
-        if ($familyBuilding === null) {
-            return null;
-        }
+        $familyBuildings = $this->familyBuildings->findAllForFamily($familyId);
 
-        return $this->formatFamilyBuilding($familyBuilding);
+        return array_map(fn (array $familyBuilding): array => $this->formatFamilyBuilding($familyBuilding), $familyBuildings);
     }
 
     /**
      * @param array<string, mixed> $requestedAmounts resource_key => amount
      * @return array{success: true, justCompleted: bool}|array{success: false, code: string, message: string}
      */
-    public function contribute(int $familyId, int $playerId, array $requestedAmounts): array
+    public function contribute(int $familyId, int $playerId, int $buildingId, array $requestedAmounts): array
     {
-        $familyBuilding = $this->familyBuildings->findForFamily($familyId);
+        $familyBuilding = $this->familyBuildings->findByFamilyAndBuilding($familyId, $buildingId);
         if ($familyBuilding === null) {
-            return $this->error('BUILDING_NOT_FOUND', 'Kein aktives Bauprojekt gefunden.');
+            return $this->error('BUILDING_NOT_FOUND', 'Kein passendes Bauprojekt gefunden.');
         }
         if ($familyBuilding['status'] !== 'in_progress') {
             return $this->error('BUILDING_ALREADY_COMPLETED', 'Dieses Bauprojekt ist bereits abgeschlossen.');
         }
 
         $familyBuildingId = (int) $familyBuilding['id'];
-        $buildingId = (int) $familyBuilding['building_id'];
 
         $costsByResource = [];
         foreach ($this->buildings->findCosts($buildingId) as $cost) {
@@ -161,6 +157,20 @@ final class BuildingService
                                 $playerId,
                                 'minigame_unlocked',
                                 sprintf('%s wurde freigeschaltet!', $minigame['name']),
+                            );
+                        }
+                    }
+
+                    $unlocksBuildingKey = $building['unlocks_building_key'] ?? null;
+                    if ($unlocksBuildingKey !== null) {
+                        $nextBuilding = $this->buildings->findByKey($unlocksBuildingKey);
+                        if ($nextBuilding !== null) {
+                            $this->familyBuildings->unlockForFamilyIfMissing($familyId, (int) $nextBuilding['id']);
+                            $this->activityLog->record(
+                                $familyId,
+                                $playerId,
+                                'building_unlocked',
+                                sprintf('Neues Bauprojekt freigeschaltet: %s!', $nextBuilding['name']),
                             );
                         }
                     }

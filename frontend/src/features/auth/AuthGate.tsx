@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { FamilyLoginScreen } from './FamilyLoginScreen';
-import { ProfileSelectionScreen } from './ProfileSelectionScreen';
-import { ParentPinDialog } from './ParentPinDialog';
+import { ParentLoginScreen } from './ParentLoginScreen';
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
@@ -10,21 +8,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <main className="auth-screen">
-        <p className="loading-hint">Einen Moment ...</p>
+        <div className="auth-panel">
+          <p className="loading-hint">Einen Moment ...</p>
+        </div>
       </main>
     );
   }
 
   if (session === null || !session.authenticated) {
-    return <FamilyLoginScreen />;
-  }
-
-  if (session.playerId === null) {
-    return <ProfileSelectionScreen />;
-  }
-
-  if (session.playerRole === 'parent' && !session.parentUnlocked) {
-    return <ParentPinDialog />;
+    return <ParentLoginScreen />;
   }
 
   return <>{children}</>;

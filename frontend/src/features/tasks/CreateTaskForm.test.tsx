@@ -7,8 +7,8 @@ import type { Player } from '../../types/auth';
 vi.mock('../../services/taskService');
 
 const players: Player[] = [
-  { id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil' },
-  { id: 4, name: 'Thea', age: 7, role: 'child', avatarKey: 'thea' },
+  { id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil', hasPhoto: false },
+  { id: 4, name: 'Thea', age: 7, role: 'child', avatarKey: 'thea', hasPhoto: false },
 ];
 
 describe('CreateTaskForm', () => {

@@ -14,96 +14,84 @@ final class AuthController
 {
     public function __construct(
         private readonly AuthService $authService,
-        private readonly int $parentUnlockSeconds,
-        private readonly int $pinMaxAttempts,
-        private readonly int $pinLockoutSeconds,
+        private readonly int $loginMaxAttempts,
+        private readonly int $loginLockoutSeconds,
+        private readonly int $childSessionLifetimeSeconds,
         private readonly string $logDirectory,
     ) {
     }
 
-    public function familyLogin(): void
+    /**
+     * Elternprofile fuer den Login-Bildschirm, bevor ueberhaupt eine Session
+     * existiert (kein RequireAuth noetig - siehe AuthService::listParentCandidates).
+     */
+    public function parents(): void
     {
-        $code = trim((string) (Request::jsonBody()['familyCode'] ?? ''));
+        $players = array_map(
+            fn (array $player): array => $this->formatPlayer($player),
+            $this->authService->listParentCandidates(),
+        );
 
-        if ($code === '' || strlen($code) > 64) {
-            JsonResponse::error(422, 'VALIDATION_ERROR', 'Bitte einen gueltigen Familiencode eingeben.');
-
-            return;
-        }
-
-        $family = $this->authService->verifyFamilyCode($code);
-        if ($family === null) {
-            JsonResponse::error(401, 'INVALID_FAMILY_CODE', 'Der Familiencode ist nicht korrekt.');
-
-            return;
-        }
-
-        Session::setFamily($family['id']);
-        Session::regenerate();
-
-        JsonResponse::success(['family' => $family]);
+        JsonResponse::success(['players' => $players]);
     }
 
-    public function selectProfile(): void
+    public function parentLogin(): void
     {
-        $familyId = Session::familyId();
-        if ($familyId === null) {
-            JsonResponse::error(401, 'UNAUTHENTICATED', 'Bitte zuerst mit dem Familiencode anmelden.');
+        if (Session::isLoginLocked()) {
+            JsonResponse::error(429, 'LOGIN_LOCKED', 'Zu viele Fehlversuche. Bitte kurz warten.');
 
             return;
         }
 
         $playerId = (int) (Request::jsonBody()['playerId'] ?? 0);
-        $profile = $this->authService->findSelectableProfile($playerId, $familyId);
-
-        if ($profile === null) {
-            JsonResponse::error(404, 'PLAYER_NOT_FOUND', 'Dieses Profil wurde nicht gefunden.');
-
-            return;
-        }
-
-        Session::selectProfile((int) $profile['id'], $profile['role']);
-
-        JsonResponse::success(['player' => $this->formatPlayer($profile)]);
-    }
-
-    public function parentUnlock(): void
-    {
-        $familyId = Session::familyId();
-        $playerId = Session::playerId();
-
-        if ($familyId === null || $playerId === null) {
-            JsonResponse::error(401, 'UNAUTHENTICATED', 'Bitte zuerst ein Profil waehlen.');
-
-            return;
-        }
-
-        if (Session::isPinLocked()) {
-            JsonResponse::error(429, 'PIN_LOCKED', 'Zu viele Fehlversuche. Bitte kurz warten.');
-
-            return;
-        }
-
         $pin = (string) (Request::jsonBody()['pin'] ?? '');
 
-        if ($pin === '' || strlen($pin) > 16) {
-            JsonResponse::error(422, 'VALIDATION_ERROR', 'Bitte eine gueltige PIN eingeben.');
+        if ($playerId <= 0 || $pin === '' || strlen($pin) > 128) {
+            JsonResponse::error(422, 'VALIDATION_ERROR', 'Bitte ein Profil waehlen und die PIN eingeben.');
 
             return;
         }
 
-        if (!$this->authService->verifyParentPin($playerId, $familyId, $pin)) {
-            Session::registerFailedPinAttempt($this->pinMaxAttempts, $this->pinLockoutSeconds);
-            Logger::security($this->logDirectory, "Fehlgeschlagener Eltern-PIN-Versuch fuer player_id={$playerId}");
-            JsonResponse::error(401, 'INVALID_PIN', 'Die PIN ist nicht korrekt.');
+        $result = $this->authService->verifyParentPin($playerId, $pin);
+        if ($result === null) {
+            Session::registerFailedLoginAttempt($this->loginMaxAttempts, $this->loginLockoutSeconds);
+            Logger::security($this->logDirectory, "Fehlgeschlagener Eltern-Login-Versuch fuer player_id={$playerId}");
+            JsonResponse::error(401, 'INVALID_CREDENTIALS', 'Die PIN ist nicht korrekt.');
 
             return;
         }
 
-        Session::resetPinAttempts();
-        Session::unlockParent($this->parentUnlockSeconds);
+        Session::resetLoginAttempts();
+        Session::setFamily($result['familyId']);
+        Session::selectProfile($result['id'], 'parent');
+        Session::regenerate();
 
-        JsonResponse::success(['parentUnlocked' => true]);
+        JsonResponse::success(['player' => $this->formatPlayer($result)]);
+    }
+
+    public function qrLogin(): void
+    {
+        $token = trim((string) (Request::jsonBody()['token'] ?? ''));
+
+        if ($token === '' || strlen($token) > 128) {
+            JsonResponse::error(422, 'VALIDATION_ERROR', 'Ungueltiger Code.');
+
+            return;
+        }
+
+        $player = $this->authService->verifyLoginToken($token);
+        if ($player === null) {
+            JsonResponse::error(401, 'INVALID_LOGIN_TOKEN', 'Dieser Code ist ungueltig oder wurde ersetzt.');
+
+            return;
+        }
+
+        Session::setFamily((int) $player['family_id']);
+        Session::selectProfile((int) $player['id'], $player['role']);
+        Session::regenerate();
+        Session::extendCookieLifetime($this->childSessionLifetimeSeconds);
+
+        JsonResponse::success(['player' => $this->formatPlayer($player)]);
     }
 
     public function logout(): void
@@ -115,11 +103,10 @@ final class AuthController
     public function session(): void
     {
         JsonResponse::success([
-            'authenticated' => Session::familyId() !== null,
+            'authenticated' => Session::familyId() !== null && Session::playerId() !== null,
             'familyId' => Session::familyId(),
             'playerId' => Session::playerId(),
             'playerRole' => Session::playerRole(),
-            'parentUnlocked' => Session::isParentUnlocked(),
             'csrfToken' => Session::csrfToken(),
         ]);
     }

@@ -13,10 +13,16 @@ backend/.phpunit.result.cache
 backend/storage/database/*.sqlite
 backend/storage/logs/*
 backend/storage/backups/*
+backend/storage/photos/*
 !backend/storage/**/.gitkeep
 
 .DS_Store
 Thumbs.db
+
+# Diagnostische/verworfene Bildvarianten aus der Asset-Entwicklung (Crop-Tests,
+# Kompositions-Previews, Ablehnungen) - keine echten Deliverables, siehe
+# docs/asset-masterprompt.md fuer die kanonischen Quelldateien in input/assets/.
+input/assets/_archiv/
 
 .idea/
 .vscode/

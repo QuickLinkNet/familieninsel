@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Building } from '../types/building';
 import { ApiError } from '../types/api';
-import { fetchActiveBuilding } from '../services/buildingService';
+import { fetchBuildings } from '../services/buildingService';
 
-export function useBuilding() {
-  const [building, setBuilding] = useState<Building | null>(null);
+export function useBuildings() {
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      setBuilding(await fetchActiveBuilding());
+      setBuildings(await fetchBuildings());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Verbindung zum Server fehlgeschlagen.');
     }
@@ -24,5 +24,5 @@ export function useBuilding() {
       .finally(() => setLoading(false));
   }, [refresh]);
 
-  return { building, loading, error, refresh };
+  return { buildings, loading, error, refresh };
 }

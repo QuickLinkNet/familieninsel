@@ -1,6 +1,10 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
+import { PlayerAvatar } from '../features/auth/PlayerAvatar';
+import { PhotoUploadControl } from '../features/auth/PhotoUploadControl';
 import { useTasksAndResources } from '../hooks/useTasksAndResources';
-import { useBuilding } from '../hooks/useBuilding';
+import { useBuildings } from '../hooks/useBuildings';
 import { useActivity } from '../hooks/useActivity';
 import { useMinigames } from '../hooks/useMinigames';
 import { ResourceBar } from '../features/resources/ResourceBar';
@@ -9,29 +13,50 @@ import { ParentTaskDashboard } from '../features/tasks/ParentTaskDashboard';
 import { BuildingProgress } from '../features/island/BuildingProgress';
 import { ActivityFeed } from '../features/island/ActivityFeed';
 import { MinigameSection } from '../features/minigames/MinigameSection';
+import { IslandMap } from '../features/island/IslandMap';
+import { DashboardOverlay } from '../features/island/DashboardOverlay';
 
 export function HomePage() {
-  const { session, players, logout } = useAuth();
+  const { session, players, logout, refreshPlayers } = useAuth();
+  const [photoVersion, setPhotoVersion] = useState(0);
+  const [overlayOpen, setOverlayOpen] = useState(false);
   const { tasks, resources, loading, error, refresh } = useTasksAndResources();
-  const { building, loading: buildingLoading, error: buildingError, refresh: refreshBuilding } = useBuilding();
+  const { buildings, loading: buildingsLoading, error: buildingsError, refresh: refreshBuildings } = useBuildings();
   const { entries, refresh: refreshActivity } = useActivity();
   const { minigames, loading: minigamesLoading, refresh: refreshMinigames } = useMinigames();
   const currentPlayer = players.find((player) => player.id === session?.playerId) ?? null;
 
   async function refreshAll(): Promise<void> {
-    await Promise.all([refresh(), refreshBuilding(), refreshActivity(), refreshMinigames()]);
+    await Promise.all([refresh(), refreshBuildings(), refreshActivity(), refreshMinigames()]);
   }
 
   return (
     <main className="home-page">
-      <header className="home-header">
+      <IslandMap buildings={buildings} />
+
+      <header className="home-header home-header--floating">
         <h1>Familien-Insel</h1>
         {currentPlayer !== null && (
           <div className="current-player">
-            <span>
+            <PlayerAvatar
+              playerId={currentPlayer.id}
+              name={currentPlayer.name}
+              role={currentPlayer.role}
+              hasPhoto={currentPlayer.hasPhoto}
+              cacheBust={photoVersion}
+            />
+            <span className="current-player__label">
               Angemeldet als <strong>{currentPlayer.name}</strong>
               {currentPlayer.role === 'parent' ? ' (Elternteil)' : ''}
             </span>
+            <PhotoUploadControl
+              playerId={currentPlayer.id}
+              onUploaded={() => {
+                setPhotoVersion((version) => version + 1);
+                void refreshPlayers();
+              }}
+            />
+            {session?.playerRole === 'parent' && <Link to="/familie">Familie verwalten</Link>}
             <button
               type="button"
               onClick={() => {
@@ -44,64 +69,68 @@ export function HomePage() {
         )}
       </header>
 
-      <ResourceBar resources={resources} />
+      <DashboardOverlay isOpen={overlayOpen} onToggle={() => setOverlayOpen((open) => !open)}>
+        <ResourceBar resources={resources} />
 
-      {/* Aufgaben zuerst: Kinder sollen ihre Aufgabe ohne Scrollen finden,
-          Eltern sollen offene Bestaetigungen sofort sehen. */}
-      {loading && <p className="loading-hint">Lade Aufgaben ...</p>}
-      {error !== null && (
-        <p role="alert" className="auth-error">
-          {error}
-        </p>
-      )}
+        {/* Aufgaben zuerst: Kinder sollen ihre Aufgabe ohne Scrollen finden,
+            Eltern sollen offene Bestaetigungen sofort sehen. */}
+        {loading && <p className="loading-hint">Lade Aufgaben ...</p>}
+        {error !== null && (
+          <p role="alert" className="auth-error">
+            {error}
+          </p>
+        )}
 
-      {!loading && session?.playerRole === 'child' && (
-        <ChildTaskList
-          tasks={tasks}
-          resources={resources}
-          onChanged={() => {
-            void refreshAll();
-          }}
-        />
-      )}
+        {!loading && session?.playerRole === 'child' && (
+          <ChildTaskList
+            tasks={tasks}
+            resources={resources}
+            onChanged={() => {
+              void refreshAll();
+            }}
+          />
+        )}
 
-      {!loading && session?.playerRole === 'parent' && (
-        <ParentTaskDashboard
-          tasks={tasks}
-          resources={resources}
-          players={players}
-          onChanged={() => {
-            void refreshAll();
-          }}
-        />
-      )}
+        {!loading && session?.playerRole === 'parent' && (
+          <ParentTaskDashboard
+            tasks={tasks}
+            resources={resources}
+            players={players}
+            onChanged={() => {
+              void refreshAll();
+            }}
+          />
+        )}
 
-      {!buildingLoading && building !== null && (
-        <BuildingProgress
-          building={building}
-          resources={resources}
-          isParent={session?.playerRole === 'parent'}
-          onChanged={() => {
-            void refreshAll();
-          }}
-        />
-      )}
-      {buildingError !== null && (
-        <p role="alert" className="auth-error">
-          {buildingError}
-        </p>
-      )}
+        {!buildingsLoading &&
+          buildings.map((building) => (
+            <BuildingProgress
+              key={building.id}
+              building={building}
+              resources={resources}
+              isParent={session?.playerRole === 'parent'}
+              onChanged={() => {
+                void refreshAll();
+              }}
+            />
+          ))}
+        {buildingsError !== null && (
+          <p role="alert" className="auth-error">
+            {buildingsError}
+          </p>
+        )}
 
-      {!minigamesLoading && (
-        <MinigameSection
-          minigames={minigames}
-          onChanged={() => {
-            void refreshAll();
-          }}
-        />
-      )}
+        {!minigamesLoading && (
+          <MinigameSection
+            minigames={minigames}
+            onChanged={() => {
+              void refreshAll();
+            }}
+          />
+        )}
 
-      <ActivityFeed entries={entries} />
+        <ActivityFeed entries={entries} />
+      </DashboardOverlay>
     </main>
   );
 }

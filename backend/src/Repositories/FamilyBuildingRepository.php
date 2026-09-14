@@ -14,19 +14,45 @@ final class FamilyBuildingRepository
     }
 
     /**
-     * MVP: hoechstens ein Bauprojekt pro Familie insgesamt - das jeweils neueste.
+     * Alle Bauprojekte (jeder Status), die fuer eine Familie bereits freigeschaltet sind.
      *
-     * @return array<string, mixed>|null
+     * @return array<int, array<string, mixed>>
      */
-    public function findForFamily(int $familyId): ?array
+    public function findAllForFamily(int $familyId): array
     {
         $statement = $this->pdo->prepare(
-            'SELECT * FROM family_buildings WHERE family_id = :family_id ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM family_buildings WHERE family_id = :family_id ORDER BY id ASC',
         );
         $statement->execute(['family_id' => $familyId]);
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByFamilyAndBuilding(int $familyId, int $buildingId): ?array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT * FROM family_buildings WHERE family_id = :family_id AND building_id = :building_id LIMIT 1',
+        );
+        $statement->execute(['family_id' => $familyId, 'building_id' => $buildingId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
         return $row === false ? null : $row;
+    }
+
+    /**
+     * Schaltet ein Gebaeude fuer eine Familie frei (legt die Fortschritts-Zeile an),
+     * aber nur, wenn noch keine existiert. Sicher fuer wiederholten Aufruf.
+     */
+    public function unlockForFamilyIfMissing(int $familyId, int $buildingId): void
+    {
+        $statement = $this->pdo->prepare(
+            "INSERT OR IGNORE INTO family_buildings (family_id, building_id, status, stage)
+             VALUES (:family_id, :building_id, 'in_progress', 1)",
+        );
+        $statement->execute(['family_id' => $familyId, 'building_id' => $buildingId]);
     }
 
     /**

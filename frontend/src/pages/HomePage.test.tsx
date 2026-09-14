@@ -10,11 +10,10 @@ vi.mock('../services/authService', () => ({
       familyId: 1,
       playerId: 3,
       playerRole: 'child',
-      parentUnlocked: false,
       csrfToken: 'test-token',
     }),
   fetchPlayers: () =>
-    Promise.resolve([{ id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil' }]),
+    Promise.resolve([{ id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil', hasPhoto: false }]),
   logout: vi.fn(),
 }));
 
@@ -28,7 +27,7 @@ vi.mock('../services/resourceService', () => ({
 }));
 
 vi.mock('../services/buildingService', () => ({
-  fetchActiveBuilding: () => Promise.resolve(null),
+  fetchBuildings: () => Promise.resolve([]),
   contributeToBuilding: vi.fn(),
 }));
 

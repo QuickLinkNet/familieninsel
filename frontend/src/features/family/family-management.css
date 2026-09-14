@@ -1,0 +1,186 @@
+.family-management {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.family-management__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.family-management__intro {
+  color: var(--text-muted);
+}
+
+.family-management__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0 24px;
+}
+
+.user-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface);
+}
+
+.user-card--inactive {
+  opacity: 0.6;
+}
+
+.user-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-card__identity {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.user-card__meta {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.user-card__edit-toggle {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 400;
+  padding: 6px 10px;
+}
+
+.user-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.user-card__hint {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.edit-name-age-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.edit-name-age-form input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.edit-name-age-form input[type='text'] {
+  flex: 2;
+  min-width: 140px;
+}
+
+.edit-name-age-form input[type='number'] {
+  flex: 1;
+  min-width: 90px;
+}
+
+.edit-name-age-form__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.parent-pin-control {
+  margin-top: 12px;
+}
+
+.parent-pin-control--open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 320px;
+}
+
+.parent-pin-control__hint {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin: 0;
+}
+
+.parent-pin-control__success {
+  color: var(--accent);
+  font-size: 0.9em;
+}
+
+.child-qr-control {
+  margin-top: 12px;
+}
+
+.child-qr-control__status {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin: 0 0 8px;
+}
+
+.child-qr-control__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.child-qr-control__hint {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  margin: 0 0 8px;
+}
+
+.child-qr-control__url {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  word-break: break-all;
+  text-align: center;
+}
+
+.child-qr-control__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.add-child-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.add-child-form input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.add-child-form input[type='text'] {
+  flex: 2;
+  min-width: 140px;
+}
+
+.add-child-form input[type='number'] {
+  flex: 1;
+  min-width: 100px;
+}

@@ -19,11 +19,15 @@ Für den Fall, dass die Anwendung auf einem neuen Server oder nach einem Totalve
 3. `npm run build` – prüft PHP-Syntax, baut das Frontend, stellt `deploy/` zusammen (inkl. produktivem Composer-Autoloader, ohne Dev-Abhängigkeiten wie PHPUnit).
 4. `npm run deploy` – lädt ausschließlich nach `REMOTE_BASE_DIR` hoch. Bricht kontrolliert ab, wenn der Pfad verdächtig aussieht (leer, `/`, `/html`, `/html/apps`) oder das Passwort fehlt.
 5. Ersten Request an `https://<domain>/apps/familieninsel/api/health` schicken – das migriert die Datenbank automatisch und legt die Demo-Familie, Rohstoffe, Demo-Aufgaben, die Strandhütte und die Schatzsuche an (`Seeder`-Klassen, siehe `backend/src/Database/Seeder.php`). Keine manuelle Installationsroutine nötig.
-6. Familiencode `INSEL2026` und Eltern-PIN `2580` **umgehend ändern**, sobald die Anwendung produktiv für die echte Familie genutzt wird (aktuell noch Demo-Werte, siehe Hinweis in [`product-spec.md`](product-spec.md) Abschnitt 14 – ein Verwaltungs-Screen dafür existiert im MVP noch nicht, Änderung müsste direkt in der Datenbank erfolgen).
+6. Eltern-PINs **umgehend ändern**, sobald die Anwendung produktiv für die echte Familie genutzt wird (Seeder legt vordefinierte Demo-PINs an, siehe `backend/src/Database/Seeder.php::PARENT_PINS`). Dafür gibt es einen Verwaltungs-Screen: als Elternteil einloggen, `/familie` öffnen, "Neue PIN setzen" bei sich selbst (oder dem anderen Elternteil) klicken - keine manuelle Datenbankänderung nötig.
 
 ### Bekannter FTP-Pfad-Fallstrick (Alfahosting)
 
 Der FTP-Login-Root liegt bei diesem Hoster eine Ebene **über** dem echten Docroot – der reale Ordner heißt `html/`, darunter liegt `apps/`. `REMOTE_BASE_DIR` muss deshalb `/html/apps/familieninsel` lauten, nicht `/apps/familieninsel`. Bei einem anderen Hoster unbedingt zuerst die tatsächliche FTP-Verzeichnisstruktur prüfen (z. B. mit einem FTP-Client), bevor `.env.deploy` befüllt wird.
+
+### Bekannter Fallstrick: FTPS scheitert mit "425 Unable to build data connection"
+
+`FTP_SECURE=true` (FTPS) kann auf manchen Netzwerken zuverlässig mit `425 Unable to build data connection` fehlschlagen, obwohl Host/Zugangsdaten korrekt sind. Ursache meist eine Router-/Firewall-"FTP-ALG" (Application Layer Gateway), die bei **unverschlüsseltem** FTP die PASV-Antwort automatisch fürs NAT umschreibt, das bei **verschlüsseltem** FTPS aber nicht mehr lesen kann und die Datenverbindung blockiert. Betrifft dann typischerweise nur Rechner/Netzwerke mit einer solchen ALG – andere Projekte auf demselben Hoster mit `secure: false` sind davon nicht betroffen. Abhilfe: `FTP_SECURE=false` in `.env.deploy` setzen (Hoster erlaubt laut oben ausdrücklich "FTP- oder FTPS-Zugang").
 
 ## Backup und Wiederherstellung
 
@@ -50,13 +54,13 @@ Die Ordner `backend/storage/logs/` (Sicherheitsereignisse wie fehlgeschlagene PI
 | SQL-Injection | Ausschließlich Prepared Statements (PDO), keine String-Konkatenation in Queries |
 | CSRF | `X-CSRF-Token`-Header auf allen schreibenden Requests, serverseitig geprüft (`App\Middleware\Csrf`) |
 | Sessions | `HttpOnly`, `SameSite=Lax`, `Secure` bei HTTPS, Session-Regeneration nach Login, konfigurierbares Idle-Timeout |
-| Zugangsdaten | Familiencode und Eltern-PIN nur gehasht gespeichert (`password_hash`/`password_verify`), nie im Klartext |
-| PIN-Bruteforce | Fehlversuche gezählt und protokolliert, temporäre Sperre nach 5 Versuchen (`backend/storage/logs/security.log`) |
+| Zugangsdaten | Eltern-PINs und Kind-Login-Tokens nur gehasht gespeichert (`password_hash`/`password_verify` bzw. SHA-256), nie im Klartext |
+| Login-Bruteforce | Fehlversuche bei der Eltern-PIN gezählt und protokolliert, temporäre Sperre nach 5 Versuchen (`backend/storage/logs/security.log`) |
 | Rollenprüfung | Serverseitig über `RequireAuth`/`RequireParent`, nie nur im Frontend |
 | SQLite-Datei | Nicht öffentlich erreichbar (`backend/.htaccess` mit `Require all denied`, verifiziert per direktem Aufruf → 403) |
 | Secrets | `.env.deploy` gitignored, keine Zugangsdaten im Repository (geprüft: `git ls-files` enthält keine `.env.deploy`) |
 | XSS | React escaped standardmäßig, kein `dangerouslySetInnerHTML` im gesamten Frontend |
-| Eingabelängen | Titel (120), Beschreibung (2000), Notiz (500), Familiencode (64), PIN (16) serverseitig begrenzt |
+| Eingabelängen | Titel (120), Beschreibung (2000), Notiz (500), Eltern-PIN (genau 4 Ziffern), Login-Token (128) serverseitig begrenzt |
 | Fehlerausgaben | Einheitliches JSON-Fehlerformat, keine Stacktraces/Pfade; globaler `set_exception_handler` fängt auch unerwartete Ausnahmen sicher ab und protokolliert sie serverseitig |
 
 ## Bekannte Fallstricke für künftige Änderungen

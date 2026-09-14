@@ -3,6 +3,7 @@ import type { Building } from '../../types/building';
 import type { Resource } from '../../types/resource';
 import { contributeToBuilding } from '../../services/buildingService';
 import { ApiError } from '../../types/api';
+import { ResourceIcon } from '../resources/ResourceIcon';
 
 interface BuildingProgressProps {
   building: Building;
@@ -92,7 +93,8 @@ export function BuildingProgress({ building, resources, isParent, onChanged }: B
       <ul className="building-costs">
         {items.map((item) => (
           <li key={item.resourceId}>
-            <span>
+            <span className="building-costs__label">
+              <ResourceIcon resourceKey={item.resource?.key ?? ''} className="building-costs__icon" />
               {item.resource?.name ?? '?'}: {item.contributed}/{item.required}
             </span>
             {canContribute && item.remaining > 0 && item.resource !== undefined && (

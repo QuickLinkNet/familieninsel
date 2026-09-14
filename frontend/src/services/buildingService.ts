@@ -1,17 +1,9 @@
 import { api } from './api';
-import { ApiError } from '../types/api';
 import type { Building } from '../types/building';
 
-export async function fetchActiveBuilding(): Promise<Building | null> {
-  try {
-    const { building } = await api.get<{ building: Building }>('/buildings/active');
-    return building;
-  } catch (err) {
-    if (err instanceof ApiError && err.code === 'BUILDING_NOT_FOUND') {
-      return null;
-    }
-    throw err;
-  }
+export async function fetchBuildings(): Promise<Building[]> {
+  const { buildings } = await api.get<{ buildings: Building[] }>('/buildings');
+  return buildings;
 }
 
 export async function contributeToBuilding(

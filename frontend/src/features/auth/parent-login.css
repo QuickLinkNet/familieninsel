@@ -1,0 +1,111 @@
+.parent-picker {
+  display: flex;
+  gap: 48px;
+  flex-wrap: wrap;
+  justify-content: center;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.parent-picker--leaving {
+  opacity: 0;
+  transform: translateY(16px) scale(0.97);
+}
+
+.parent-picker__icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  padding: 12px;
+  transition: transform 0.15s ease;
+}
+
+.parent-picker__icon:hover:not(:disabled),
+.parent-picker__icon:focus-visible {
+  transform: translateY(-4px) scale(1.05);
+}
+
+.parent-picker__icon:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.parent-picker__name {
+  font-family: 'Rye', 'Georgia', serif;
+  font-size: 1.3em;
+  font-weight: 400;
+  color: #fff6e6;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.parent-picker__custom-icon {
+  width: 200px;
+  height: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+
+.auth-error--overlay {
+  margin-top: 24px;
+  text-align: center;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* PIN-Panel -------------------------------------------------------- */
+
+.pin-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  animation: pin-panel-in 0.25s ease both;
+}
+
+.pin-panel--entering-from {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.97);
+}
+
+@keyframes pin-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pin-panel__back {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: transparent;
+  border: none;
+  color: #cbb997;
+  font-size: 1.4em;
+  padding: 4px 10px;
+  min-height: auto;
+}
+
+.pin-panel__back:hover {
+  color: #fff6e6;
+}
+
+.pin-panel__name {
+  margin: 4px 0 0;
+}
+
+.pin-panel__status {
+  color: #e8dcc8;
+  margin: 0 0 8px;
+  min-height: 1.4em;
+  transition: color 0.15s ease;
+}
+
+.pin-panel__status--error {
+  color: #ffb4a8;
+}

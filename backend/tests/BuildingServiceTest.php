@@ -12,6 +12,7 @@ use App\Repositories\BuildingRepository;
 use App\Repositories\FamilyBuildingRepository;
 use App\Repositories\FamilyRepository;
 use App\Repositories\MinigameRepository;
+use App\Repositories\PlayerLoginTokenRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
@@ -28,6 +29,7 @@ final class BuildingServiceTest extends TestCase
     private ResourceRepository $resourceRepository;
     private int $familyId;
     private int $manuelId;
+    private int $beachHutBuildingId;
     private int $woodResourceId;
     private int $metalResourceId;
     private int $fabricResourceId;
@@ -46,9 +48,14 @@ final class BuildingServiceTest extends TestCase
         $seeder->seedBuildingCatalogIfEmpty();
         $seeder->seedActiveFamilyBuildingIfEmpty();
         $seeder->seedMinigameCatalogIfEmpty();
+        $seeder->seedWatchtowerBuildingIfMissing();
 
         $this->resourceRepository = new ResourceRepository($this->pdo);
-        $authService = new AuthService(new FamilyRepository($this->pdo), new PlayerRepository($this->pdo));
+        $authService = new AuthService(
+            new FamilyRepository($this->pdo),
+            new PlayerRepository($this->pdo),
+            new PlayerLoginTokenRepository($this->pdo),
+        );
         $this->familyId = (int) $this->pdo->query('SELECT id FROM families LIMIT 1')->fetchColumn();
         $players = $authService->listActivePlayers($this->familyId);
         $byName = [];
@@ -56,6 +63,8 @@ final class BuildingServiceTest extends TestCase
             $byName[$player['name']] = (int) $player['id'];
         }
         $this->manuelId = $byName['Manuel'];
+
+        $this->beachHutBuildingId = (int) $this->pdo->query("SELECT id FROM buildings WHERE key = 'beach_hut'")->fetchColumn();
 
         $this->woodResourceId = (int) $this->resourceRepository->findIdByKey('wood');
         $this->metalResourceId = (int) $this->resourceRepository->findIdByKey('metal');
@@ -87,33 +96,67 @@ final class BuildingServiceTest extends TestCase
         $this->resourceRepository->incrementBalance($this->familyId, $resourceId, $amount);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findBuildingByKey(string $key): ?array
+    {
+        foreach ($this->buildingService->getBuildingsForFamily($this->familyId) as $building) {
+            if ($building['key'] === $key) {
+                return $building;
+            }
+        }
+
+        return null;
+    }
+
+    private function contributeToBeachHut(array $amounts): array
+    {
+        return $this->buildingService->contribute($this->familyId, $this->manuelId, $this->beachHutBuildingId, $amounts);
+    }
+
     public function testInitialBuildingIsInProgressAtStageOneWithZeroProgress(): void
     {
-        $building = $this->buildingService->getActiveBuildingForFamily($this->familyId);
+        $building = $this->findBuildingByKey('beach_hut');
 
+        self::assertNotNull($building);
         self::assertSame('in_progress', $building['status']);
         self::assertSame(1, $building['stage']);
         self::assertSame(0, $building['progressPercent']);
-        self::assertSame('beach_hut', $building['key']);
+    }
+
+    public function testWatchtowerIsNotYetUnlockedForNewFamily(): void
+    {
+        self::assertNull($this->findBuildingByKey('watchtower'));
     }
 
     public function testContributeFailsWithoutSufficientBalance(): void
     {
-        $result = $this->buildingService->contribute($this->familyId, $this->manuelId, ['wood' => 5]);
+        $result = $this->contributeToBeachHut(['wood' => 5]);
 
         self::assertFalse($result['success']);
         self::assertSame('INSUFFICIENT_RESOURCES', $result['code']);
+    }
+
+    public function testContributingToUnknownBuildingIsRejected(): void
+    {
+        $this->grantResources($this->woodResourceId, 5);
+
+        $result = $this->buildingService->contribute($this->familyId, $this->manuelId, 999999, ['wood' => 5]);
+
+        self::assertFalse($result['success']);
+        self::assertSame('BUILDING_NOT_FOUND', $result['code']);
     }
 
     public function testPartialContributionUpdatesProgressAndDeductsBalance(): void
     {
         $this->grantResources($this->woodResourceId, 10);
 
-        $result = $this->buildingService->contribute($this->familyId, $this->manuelId, ['wood' => 10]);
+        $result = $this->contributeToBeachHut(['wood' => 10]);
         self::assertTrue($result['success']);
         self::assertFalse($result['justCompleted']);
 
-        $building = $this->buildingService->getActiveBuildingForFamily($this->familyId);
+        $building = $this->findBuildingByKey('beach_hut');
         self::assertSame('in_progress', $building['status']);
         self::assertGreaterThan(0, $building['progressPercent']);
         self::assertLessThan(100, $building['progressPercent']);
@@ -127,7 +170,7 @@ final class BuildingServiceTest extends TestCase
         // Holz-Bedarf der Strandhuette ist 20; wir haben 100 Holz und zahlen alles auf einmal ein.
         $this->grantResources($this->woodResourceId, 100);
 
-        $this->buildingService->contribute($this->familyId, $this->manuelId, ['wood' => 100]);
+        $this->contributeToBeachHut(['wood' => 100]);
 
         $balances = $this->resourceRepository->findFamilyBalances($this->familyId);
         // Nur 20 (der tatsaechliche Bedarf) duerfen abgezogen worden sein, der Rest bleibt im Lager.
@@ -141,7 +184,7 @@ final class BuildingServiceTest extends TestCase
         $this->grantResources($this->fabricResourceId, 8);
         $this->grantResources($this->ropeResourceId, 5);
 
-        $result = $this->buildingService->contribute($this->familyId, $this->manuelId, [
+        $result = $this->contributeToBeachHut([
             'wood' => 20,
             'metal' => 10,
             'fabric' => 8,
@@ -151,7 +194,7 @@ final class BuildingServiceTest extends TestCase
         self::assertTrue($result['success']);
         self::assertTrue($result['justCompleted']);
 
-        $building = $this->buildingService->getActiveBuildingForFamily($this->familyId);
+        $building = $this->findBuildingByKey('beach_hut');
         self::assertSame('completed', $building['status']);
         self::assertSame(5, $building['stage']);
         self::assertSame(100, $building['progressPercent']);
@@ -165,9 +208,7 @@ final class BuildingServiceTest extends TestCase
         $this->grantResources($this->fabricResourceId, 8);
         $this->grantResources($this->ropeResourceId, 5);
 
-        $this->buildingService->contribute($this->familyId, $this->manuelId, [
-            'wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5,
-        ]);
+        $this->contributeToBeachHut(['wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5]);
 
         $minigameId = (int) $this->pdo->query("SELECT id FROM minigames WHERE key = 'schatzsuche'")->fetchColumn();
         $status = (new MinigameRepository($this->pdo))->findFamilyStatus($this->familyId, $minigameId);
@@ -177,18 +218,60 @@ final class BuildingServiceTest extends TestCase
         self::assertNull($status['first_completion_at']);
     }
 
+    public function testCompletingBeachHutUnlocksWatchtower(): void
+    {
+        $this->grantResources($this->woodResourceId, 20);
+        $this->grantResources($this->metalResourceId, 10);
+        $this->grantResources($this->fabricResourceId, 8);
+        $this->grantResources($this->ropeResourceId, 5);
+
+        $this->contributeToBeachHut(['wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5]);
+
+        $watchtower = $this->findBuildingByKey('watchtower');
+        self::assertNotNull($watchtower);
+        self::assertSame('in_progress', $watchtower['status']);
+        self::assertSame(1, $watchtower['stage']);
+        self::assertSame(0, $watchtower['progressPercent']);
+    }
+
+    public function testWatchtowerCanBeContributedToIndependentlyOfBeachHut(): void
+    {
+        $this->grantResources($this->woodResourceId, 35);
+        $this->grantResources($this->metalResourceId, 10);
+        $this->grantResources($this->fabricResourceId, 8);
+        $this->grantResources($this->ropeResourceId, 5);
+        $this->contributeToBeachHut(['wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5]);
+
+        $watchtower = $this->findBuildingByKey('watchtower');
+        self::assertNotNull($watchtower);
+
+        $result = $this->buildingService->contribute(
+            $this->familyId,
+            $this->manuelId,
+            (int) $watchtower['id'],
+            ['wood' => 15],
+        );
+
+        self::assertTrue($result['success']);
+
+        $updatedWatchtower = $this->findBuildingByKey('watchtower');
+        self::assertGreaterThan(0, $updatedWatchtower['progressPercent']);
+
+        // Die Strandhuette bleibt davon unberuehrt (bereits fertig).
+        $beachHut = $this->findBuildingByKey('beach_hut');
+        self::assertSame('completed', $beachHut['status']);
+    }
+
     public function testContributingAfterCompletionIsRejected(): void
     {
         $this->grantResources($this->woodResourceId, 20);
         $this->grantResources($this->metalResourceId, 10);
         $this->grantResources($this->fabricResourceId, 8);
         $this->grantResources($this->ropeResourceId, 5);
-        $this->buildingService->contribute($this->familyId, $this->manuelId, [
-            'wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5,
-        ]);
+        $this->contributeToBeachHut(['wood' => 20, 'metal' => 10, 'fabric' => 8, 'rope' => 5]);
 
         $this->grantResources($this->woodResourceId, 5);
-        $result = $this->buildingService->contribute($this->familyId, $this->manuelId, ['wood' => 5]);
+        $result = $this->contributeToBeachHut(['wood' => 5]);
 
         self::assertFalse($result['success']);
         self::assertSame('BUILDING_ALREADY_COMPLETED', $result['code']);
@@ -202,7 +285,7 @@ final class BuildingServiceTest extends TestCase
     {
         $this->grantResources($this->woodResourceId, 3);
 
-        $result = $this->buildingService->contribute($this->familyId, $this->manuelId, ['wood' => 3, 'metal' => 1]);
+        $result = $this->contributeToBeachHut(['wood' => 3, 'metal' => 1]);
 
         self::assertFalse($result['success']);
         self::assertSame('INSUFFICIENT_RESOURCES', $result['code']);

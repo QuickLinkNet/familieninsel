@@ -124,9 +124,16 @@ Details zu Feldern: siehe Migrationen in `backend/database/migrations/` (werden 
 
 ## 14. Authentifizierung
 
-Kein E-Mail-Login. Familiencode (Demo: `INSEL2026`, nicht im Klartext gespeichert). Eltern-PIN, 4-stellig (Demo: `2580`), gehasht mit `password_hash()`/`password_verify()`. Kinder wählen Profil über Avatar+Name, keine eigene PIN. Wechsel Kind → Elternfunktion erfordert immer die Eltern-PIN.
+Kein E-Mail-Login, keine öffentliche Registrierung. Zwei getrennte Wege je Rolle:
 
-Sessions: Regeneration nach Login, HttpOnly, SameSite, Secure bei HTTPS, konfigurierbarer Timeout, serverseitige Rollenprüfung, Logout. PIN-Schutz: Fehlversuche zählen, kurze Sperrzeit, Protokollierung, keine Auskunft welcher Teil falsch war.
+- **Eltern**: Auswahl per Icon + 4-stellige PIN über ein spielinternes Zahlenfeld (kein natives HTML-Passwortfeld, keine sichtbaren Ziffern - nur gefüllte Punkte). PIN vordefiniert beim Seeding, änderbar über die Benutzerverwaltung `/familie` (`password_hash()`/`password_verify()`, Spaltenname historisch weiterhin `password_hash`). Ein Elternteil wird bei korrekter PIN direkt vollständig angemeldet - kein zusätzlicher Freischalt-Schritt mehr.
+- **Kinder**: QR-Code-Login. Jedes Kind bekommt in der Benutzerverwaltung einen Login-Token, der als QR-Code (URL `/kind/{token}`) angezeigt wird. Nur der SHA-256-Hash landet in der Datenbank, der Rohwert wird nur einmalig direkt nach dem Erzeugen angezeigt. Der Code ist wiederverwendbar (kein "einmal benutzt = tot"), damit ein zurückgesetztes Tablet erneut damit angemeldet werden kann. Ein neuer Code macht den alten sofort ungültig, ändert aber nichts am Spielstand (Token und Spielerprofil sind getrennte Datensätze).
+- Kind-Sessions bekommen ein langlebiges Cookie (Monate statt Browser-Laufzeit), damit das Tablet dauerhaft angemeldet bleibt.
+- Familienmitglieder lassen sich vollständig in `/familie` verwalten: Name/Alter bearbeiten, Eltern-PIN setzen (auch für die jeweils andere Person, beide Eltern sind gleichberechtigt, Eingabe per Zahlenfeld mit Wiederholung zur Bestätigung), Profile deaktivieren/reaktivieren (Soft-Delete, Daten bleiben erhalten). Schutz: niemand deaktiviert sich selbst, der letzte aktive Elternteil bleibt unantastbar.
+
+**Historisch (entfernt):** MVP startete mit einem geteilten Familiencode + Avatar-Auswahl + 4-stelliger Eltern-PIN, danach kurz durch einen freien Text-Passwort-Login ersetzt. Beides wich der aktuellen Loesung (Icon-Auswahl + 4-stellige PIN per spielinternem Zahlenfeld), weil ein geteilter Code keine echte Zuordnung "wer ist gerade angemeldet" ermöglichte und ein natives Passwortfeld sich wie ein Web-Formular statt wie Teil des Spiels anfühlte.
+
+Sessions: Regeneration nach Login, HttpOnly, SameSite, Secure bei HTTPS, langes Idle-Timeout (Kind-Tablets sollen nicht ständig neu anmelden müssen), serverseitige Rollenprüfung, Logout. Login-Schutz: Fehlversuche bei der Eltern-PIN zählen, kurze Sperrzeit, Protokollierung, keine Auskunft welcher Teil falsch war.
 
 ## 15. API (schrittweise je Phase implementieren)
 

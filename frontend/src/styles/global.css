@@ -67,6 +67,49 @@ select {
   margin-bottom: 16px;
 }
 
+.home-header--floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 12px 16px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  color: #fff;
+}
+
+.home-header--floating h1 {
+  color: #fff;
+  font-size: 1.2em;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .home-header--floating {
+    padding: 8px 10px;
+  }
+
+  .home-header--floating h1 {
+    font-size: 1em;
+    flex-basis: 100%;
+  }
+
+  .home-header--floating .current-player__label {
+    display: none;
+  }
+
+  .home-header--floating .current-player {
+    gap: 8px;
+  }
+
+  .home-header--floating button,
+  .home-header--floating .photo-upload-button {
+    padding: 8px 10px;
+    font-size: 0.85em;
+  }
+}
+
 .current-player {
   display: flex;
   align-items: center;
@@ -83,49 +126,44 @@ select {
 }
 
 .auth-screen {
-  max-width: 480px;
-  margin: 10vh auto 0;
-  text-align: center;
-}
-
-.auth-screen h1 {
-  margin: 0 0 8px;
-}
-
-.auth-screen p {
-  color: var(--text-muted);
-  margin: 0 0 24px;
-}
-
-.auth-form {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background:
+    linear-gradient(rgba(20, 20, 15, 0.15), rgba(20, 20, 15, 0.4)),
+    url('../assets/island/login-hintergrund.webp') center/cover no-repeat;
 }
 
-.auth-form input {
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
+.auth-panel {
+  max-width: 480px;
+  width: 100%;
   text-align: center;
-  font-size: 1.2em;
+  background:
+    linear-gradient(rgba(58, 38, 22, 0.82), rgba(40, 26, 16, 0.88));
+  border: 2px solid rgba(214, 167, 96, 0.55);
+  border-radius: 20px;
+  padding: 32px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
 }
 
-.auth-form button,
-.profile-card {
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
+.auth-panel h1 {
+  margin: 0 0 8px;
+  font-family: 'Rye', 'Georgia', serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: #f3d9a4;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
-.auth-form button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.auth-panel p {
+  color: #e8dcc8;
+  margin: 0 0 24px;
 }
 
 .auth-error {
@@ -133,45 +171,37 @@ select {
   margin-top: 16px;
 }
 
-.profile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
+/* Dezenter "Ghost"-Button fuer sekundaere Aktionen (Abbrechen, Zurueck,
+   Deaktivieren) - bewusst eigenstaendig statt an ein bestimmtes Formular
+   gebunden, da er in mehreren unabhaengigen Bereichen (Login, Benutzer-
+   verwaltung) verwendet wird. */
+.auth-form__secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
-.profile-card {
+.auth-form__secondary:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.photo-upload-control {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 12px;
+  gap: 4px;
+}
+
+.photo-upload-button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
 }
 
-.profile-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.4em;
-  font-weight: 700;
-}
-
-.profile-name {
-  font-size: 1.1em;
-  font-weight: 600;
-}
-
-.profile-age,
-.profile-badge {
-  font-size: 0.85em;
-  color: var(--text-muted);
+.photo-upload-button:disabled {
+  opacity: 0.5;
 }
 
 .resource-bar {
@@ -182,6 +212,9 @@ select {
 }
 
 .resource-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 14px;
   border-radius: 999px;
   background: var(--surface);
@@ -191,6 +224,13 @@ select {
 
 .resource-pill strong {
   margin-right: 4px;
+}
+
+.resource-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .task-list {
@@ -242,6 +282,25 @@ select {
 .task-assignee {
   margin: 4px 0 0;
   color: var(--text-muted);
+}
+
+.task-reward {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-reward__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-reward__icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .task-actions {
@@ -314,6 +373,18 @@ select {
 
 .reward-input input {
   width: 100%;
+}
+
+.reward-input__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reward-input__icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .create-task-form button {
@@ -390,6 +461,18 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.building-costs__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.building-costs__icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .building-costs input {

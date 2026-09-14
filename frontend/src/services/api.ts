@@ -35,6 +35,28 @@ async function request<T>(path: string, init: RequestInit & { method: string }):
   return body.data;
 }
 
+async function requestForm<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (csrfToken !== null) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: formData,
+  });
+
+  const body = (await response.json()) as ApiResponse<T>;
+
+  if (!body.success) {
+    throw new ApiError(body.error.code, body.error.message);
+  }
+
+  return body.data;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: 'GET' }),
   post: <T>(path: string, payload?: unknown) =>
@@ -42,4 +64,5 @@ export const api = {
   put: <T>(path: string, payload?: unknown) =>
     request<T>(path, { method: 'PUT', body: payload ? JSON.stringify(payload) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  postForm: <T>(path: string, formData: FormData) => requestForm<T>(path, formData),
 };

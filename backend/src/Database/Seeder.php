@@ -9,6 +9,26 @@ use Throwable;
 
 final class Seeder
 {
+    /**
+     * Vordefinierte Eltern-PINs (MVP: keine Selbstregistrierung). Bewusst hier
+     * zentral statt verstreut, damit seedDemoFamilyIfEmpty (Neuinstallation)
+     * und die Backfill-Methoden unten garantiert dieselben Werte verwenden.
+     */
+    private const PARENT_PINS = [
+        'Manuel' => '2026',
+        'Kathrin' => '2580',
+    ];
+
+    /**
+     * Die ursprünglichen, langen Text-Passwörter aus der ersten Login-Version
+     * (vor der Umstellung auf 4-stellige PINs) - nur noch gebraucht, um
+     * seedParentPinsFromLegacyPassword() idempotent zu machen (siehe dort).
+     */
+    private const LEGACY_PARENT_PASSWORDS = [
+        'Manuel' => 'ManuelInsel2026',
+        'Kathrin' => 'KathrinInsel2026',
+    ];
+
     public function __construct(private readonly PDO $pdo)
     {
     }
@@ -35,18 +55,16 @@ final class Seeder
             ]);
             $familyId = (int) $this->pdo->lastInsertId();
 
-            $parentPinHash = password_hash('2580', PASSWORD_DEFAULT);
-
             $players = [
-                ['name' => 'Manuel', 'age' => null, 'role' => 'parent', 'avatar_key' => 'manuel', 'pin' => $parentPinHash],
-                ['name' => 'Kathrin', 'age' => null, 'role' => 'parent', 'avatar_key' => 'kathrin', 'pin' => $parentPinHash],
+                ['name' => 'Manuel', 'age' => null, 'role' => 'parent', 'avatar_key' => 'manuel', 'pin' => self::PARENT_PINS['Manuel']],
+                ['name' => 'Kathrin', 'age' => null, 'role' => 'parent', 'avatar_key' => 'kathrin', 'pin' => self::PARENT_PINS['Kathrin']],
                 ['name' => 'Emil', 'age' => 5, 'role' => 'child', 'avatar_key' => 'emil', 'pin' => null],
                 ['name' => 'Thea', 'age' => 7, 'role' => 'child', 'avatar_key' => 'thea', 'pin' => null],
                 ['name' => 'Nova', 'age' => 8, 'role' => 'child', 'avatar_key' => 'nova', 'pin' => null],
             ];
 
             $playerStatement = $this->pdo->prepare(
-                'INSERT INTO players (family_id, name, age, role, avatar_key, parent_pin_hash)
+                'INSERT INTO players (family_id, name, age, role, avatar_key, password_hash)
                  VALUES (:family_id, :name, :age, :role, :avatar_key, :pin)',
             );
 
@@ -57,7 +75,7 @@ final class Seeder
                     'age' => $player['age'],
                     'role' => $player['role'],
                     'avatar_key' => $player['avatar_key'],
-                    'pin' => $player['pin'],
+                    'pin' => $player['pin'] !== null ? password_hash($player['pin'], PASSWORD_DEFAULT) : null,
                 ]);
             }
 
@@ -65,6 +83,77 @@ final class Seeder
         } catch (Throwable $e) {
             $this->pdo->rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * Vordefinierte Eltern-PINs (siehe Klassen-Konstante PARENT_PINS).
+     * Backfill fuer Installationen, die noch gar keine PIN/Passwort haben
+     * (z. B. eine ganz neue Familie ueber einen alten DB-Stand). Idempotent:
+     * setzt nur, wo noch nichts hinterlegt ist.
+     */
+    public function seedParentPinsIfMissing(): void
+    {
+        $statement = $this->pdo->prepare(
+            "SELECT id, name FROM players WHERE role = 'parent' AND password_hash IS NULL",
+        );
+        $statement->execute();
+        $parentsWithoutPin = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($parentsWithoutPin === []) {
+            return;
+        }
+
+        $updateStatement = $this->pdo->prepare(
+            'UPDATE players SET password_hash = :password_hash WHERE id = :id',
+        );
+
+        foreach ($parentsWithoutPin as $parent) {
+            $pin = self::PARENT_PINS[$parent['name']] ?? null;
+            if ($pin === null) {
+                continue;
+            }
+
+            $updateStatement->execute([
+                'password_hash' => password_hash($pin, PASSWORD_DEFAULT),
+                'id' => $parent['id'],
+            ]);
+        }
+    }
+
+    /**
+     * Migrations-Backfill: die Live-Familie hatte bereits die langen
+     * Text-Passwoerter aus der ersten Login-Version (siehe
+     * LEGACY_PARENT_PASSWORDS) - die werden hier durch die neuen 4-stelligen
+     * PINs ersetzt. Idempotent ueber password_verify() gegen das bekannte
+     * alte Passwort: sobald einmal ersetzt, matcht das alte Passwort nicht
+     * mehr, ein von Hand geaenderter eigener Wert wird nie angefasst.
+     */
+    public function seedParentPinsFromLegacyPasswords(): void
+    {
+        $statement = $this->pdo->prepare(
+            "SELECT id, name, password_hash FROM players WHERE role = 'parent' AND password_hash IS NOT NULL",
+        );
+        $statement->execute();
+        $parents = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        $updateStatement = $this->pdo->prepare(
+            'UPDATE players SET password_hash = :password_hash WHERE id = :id',
+        );
+
+        foreach ($parents as $parent) {
+            $legacyPassword = self::LEGACY_PARENT_PASSWORDS[$parent['name']] ?? null;
+            $newPin = self::PARENT_PINS[$parent['name']] ?? null;
+            if ($legacyPassword === null || $newPin === null) {
+                continue;
+            }
+
+            if (password_verify($legacyPassword, (string) $parent['password_hash'])) {
+                $updateStatement->execute([
+                    'password_hash' => password_hash($newPin, PASSWORD_DEFAULT),
+                    'id' => $parent['id'],
+                ]);
+            }
         }
     }
 
@@ -252,6 +341,84 @@ final class Seeder
              VALUES (:family_id, :building_id, 'in_progress', 1)",
         );
         $statement->execute(['family_id' => (int) $familyId, 'building_id' => (int) $buildingId]);
+    }
+
+    /**
+     * Legt den Wachturm als zweites Gebaeude an (freigeschaltet nach der
+     * Strandhuette), aber nur, wenn er noch nicht im Katalog existiert.
+     * Verknuepft die Strandhuette per unlocks_building_key mit dem Wachturm.
+     */
+    public function seedWatchtowerBuildingIfMissing(): void
+    {
+        $exists = (bool) $this->pdo->query("SELECT 1 FROM buildings WHERE key = 'watchtower' LIMIT 1")->fetchColumn();
+        if ($exists) {
+            return;
+        }
+
+        $resourcesByKey = [];
+        foreach ($this->pdo->query('SELECT id, key FROM resources')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $resourcesByKey[$row['key']] = (int) $row['id'];
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->exec(
+                "INSERT INTO buildings (key, name, description)
+                 VALUES ('watchtower', 'Wachturm', 'Ein Ausguck, um die See nach Rettung abzusuchen.')",
+            );
+            $buildingId = (int) $this->pdo->lastInsertId();
+
+            $costs = ['wood' => 15, 'metal' => 8, 'fabric' => 3, 'rope' => 6];
+            $costStatement = $this->pdo->prepare(
+                'INSERT INTO building_costs (building_id, resource_id, required_amount)
+                 VALUES (:building_id, :resource_id, :amount)',
+            );
+
+            foreach ($costs as $resourceKey => $amount) {
+                $resourceId = $resourcesByKey[$resourceKey] ?? null;
+                if ($resourceId === null) {
+                    continue;
+                }
+
+                $costStatement->execute(['building_id' => $buildingId, 'resource_id' => $resourceId, 'amount' => $amount]);
+            }
+
+            $this->pdo->exec("UPDATE buildings SET unlocks_building_key = 'watchtower' WHERE key = 'beach_hut'");
+
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Schaltet den Wachturm nachtraeglich fuer Familien frei, deren Strandhuette
+     * schon fertiggestellt war, bevor es den Wachturm als Gebaeude gab. Sicher
+     * fuer wiederholten Aufruf (unlockForFamilyIfMissing ist idempotent).
+     */
+    public function seedWatchtowerUnlockForCompletedBeachHuts(): void
+    {
+        $watchtowerId = $this->pdo->query("SELECT id FROM buildings WHERE key = 'watchtower' LIMIT 1")->fetchColumn();
+        if ($watchtowerId === false) {
+            return;
+        }
+
+        $rows = $this->pdo->query(
+            "SELECT fb.family_id
+             FROM family_buildings fb
+             JOIN buildings b ON b.id = fb.building_id
+             WHERE b.key = 'beach_hut' AND fb.status = 'completed'",
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        $statement = $this->pdo->prepare(
+            "INSERT OR IGNORE INTO family_buildings (family_id, building_id, status, stage)
+             VALUES (:family_id, :building_id, 'in_progress', 1)",
+        );
+
+        foreach ($rows as $row) {
+            $statement->execute(['family_id' => (int) $row['family_id'], 'building_id' => (int) $watchtowerId]);
+        }
     }
 
     /**

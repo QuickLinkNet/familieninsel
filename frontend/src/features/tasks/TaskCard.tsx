@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Task, TaskStatus } from '../../types/task';
 import type { Resource } from '../../types/resource';
-import { resourceIcon } from '../../utils/resourceIcons';
+import { ResourceIcon } from '../resources/ResourceIcon';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   open: 'Offen',
@@ -11,15 +11,22 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   cancelled: 'Gelöscht',
 };
 
-function rewardLabel(task: Task, resources: Resource[]): string {
-  return task.rewards
-    .filter((reward) => reward.amount > 0)
-    .map((reward) => {
-      const resource = resources.find((candidate) => candidate.id === reward.resourceId);
-      const icon = resource !== undefined ? resourceIcon(resource.key) : '❔';
-      return `${icon} ${reward.amount} ${resource?.name ?? '?'}`;
-    })
-    .join('  ');
+function RewardList({ task, resources }: { task: Task; resources: Resource[] }) {
+  const rewards = task.rewards.filter((reward) => reward.amount > 0);
+
+  return (
+    <>
+      {rewards.map((reward) => {
+        const resource = resources.find((candidate) => candidate.id === reward.resourceId);
+        return (
+          <span key={reward.resourceId} className="task-reward__item">
+            <ResourceIcon resourceKey={resource?.key ?? ''} className="task-reward__icon" />
+            {reward.amount} {resource?.name ?? '?'}
+          </span>
+        );
+      })}
+    </>
+  );
 }
 
 interface TaskCardProps {
@@ -38,7 +45,9 @@ export function TaskCard({ task, resources, children }: TaskCardProps) {
       {task.description !== null && task.description !== '' && (
         <p className="task-description">{task.description}</p>
       )}
-      <p className="task-reward">Belohnung: {rewardLabel(task, resources)}</p>
+      <p className="task-reward">
+        Belohnung: <RewardList task={task} resources={resources} />
+      </p>
       {task.status === 'rejected' && task.parentNote !== null && task.parentNote !== '' && (
         <p className="task-parent-note">Notiz: {task.parentNote}</p>
       )}

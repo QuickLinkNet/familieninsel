@@ -1,0 +1,98 @@
+/* Von PinDots.tsx und PinKeypad.tsx gemeinsam genutzt - beide Komponenten
+   importieren diese Datei selbst, damit die Styles unabhaengig davon laden,
+   von welcher Seite/Feature aus sie eingebunden werden (Login-Screen UND
+   Benutzerverwaltung). */
+
+.pin-dots {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 20px;
+}
+
+.pin-dots--error {
+  animation: pin-dots-shake 0.4s ease;
+}
+
+@keyframes pin-dots-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(8px);
+  }
+  60% {
+    transform: translateX(-6px);
+  }
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+.pin-dots__dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(214, 167, 96, 0.6);
+  background: transparent;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.pin-dots__dot--filled {
+  background: #d6a760;
+  transform: scale(1.1);
+}
+
+.pin-dots--error .pin-dots__dot--filled {
+  background: #e05c4a;
+  border-color: #e05c4a;
+}
+
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.pin-keypad__key {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(214, 167, 96, 0.5);
+  background: linear-gradient(180deg, #a9702f, #8a5a24);
+  color: #fff6e6;
+  font-size: 1.3em;
+  font-weight: 600;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.pin-keypad__key:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
+.pin-keypad__key:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.pin-keypad__key--action {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbb997;
+  font-weight: 400;
+  font-size: 1.1em;
+}
+
+.pin-keypad__key:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 420px) {
+  .pin-keypad__key {
+    width: 56px;
+    height: 56px;
+  }
+}

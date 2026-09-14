@@ -9,11 +9,10 @@ final class Session
     private const KEY_FAMILY_ID = 'family_id';
     private const KEY_PLAYER_ID = 'player_id';
     private const KEY_PLAYER_ROLE = 'player_role';
-    private const KEY_PARENT_UNLOCKED_UNTIL = 'parent_unlocked_until';
     private const KEY_CSRF_TOKEN = 'csrf_token';
     private const KEY_LAST_ACTIVITY = 'last_activity';
-    private const KEY_PIN_ATTEMPTS = 'pin_attempts';
-    private const KEY_PIN_LOCKED_UNTIL = 'pin_locked_until';
+    private const KEY_LOGIN_ATTEMPTS = 'login_attempts';
+    private const KEY_LOGIN_LOCKED_UNTIL = 'login_locked_until';
 
     /**
      * @param array{cookie_name: string, idle_timeout_seconds: int} $config
@@ -53,6 +52,25 @@ final class Session
         session_regenerate_id(true);
     }
 
+    /**
+     * Verlaengert das Session-Cookie ueber die Browser-Laufzeit hinaus. Wird
+     * beim QR-Login von Kindern genutzt, damit das Tablet dauerhaft
+     * angemeldet bleibt statt sich beim Schliessen des Browsers abzumelden
+     * (normales PHP-Session-Cookie hat lifetime=0, also nur bis Browser zu).
+     */
+    public static function extendCookieLifetime(int $seconds): void
+    {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), session_id(), [
+            'expires' => time() + $seconds,
+            'path' => $params['path'],
+            'domain' => $params['domain'],
+            'secure' => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'],
+        ]);
+    }
+
     public static function destroy(): void
     {
         $_SESSION = [];
@@ -73,7 +91,6 @@ final class Session
     {
         $_SESSION[self::KEY_PLAYER_ID] = $playerId;
         $_SESSION[self::KEY_PLAYER_ROLE] = $role;
-        unset($_SESSION[self::KEY_PARENT_UNLOCKED_UNTIL]);
     }
 
     public static function playerId(): ?int
@@ -84,17 +101,6 @@ final class Session
     public static function playerRole(): ?string
     {
         return $_SESSION[self::KEY_PLAYER_ROLE] ?? null;
-    }
-
-    public static function unlockParent(int $ttlSeconds): void
-    {
-        $_SESSION[self::KEY_PARENT_UNLOCKED_UNTIL] = time() + $ttlSeconds;
-    }
-
-    public static function isParentUnlocked(): bool
-    {
-        $until = $_SESSION[self::KEY_PARENT_UNLOCKED_UNTIL] ?? null;
-        return $until !== null && time() < (int) $until;
     }
 
     public static function csrfToken(): string
@@ -113,24 +119,24 @@ final class Session
         return $expected !== null && $token !== null && hash_equals($expected, $token);
     }
 
-    public static function registerFailedPinAttempt(int $maxAttempts, int $lockoutSeconds): void
+    public static function registerFailedLoginAttempt(int $maxAttempts, int $lockoutSeconds): void
     {
-        $attempts = ((int) ($_SESSION[self::KEY_PIN_ATTEMPTS] ?? 0)) + 1;
-        $_SESSION[self::KEY_PIN_ATTEMPTS] = $attempts;
+        $attempts = ((int) ($_SESSION[self::KEY_LOGIN_ATTEMPTS] ?? 0)) + 1;
+        $_SESSION[self::KEY_LOGIN_ATTEMPTS] = $attempts;
 
         if ($attempts >= $maxAttempts) {
-            $_SESSION[self::KEY_PIN_LOCKED_UNTIL] = time() + $lockoutSeconds;
+            $_SESSION[self::KEY_LOGIN_LOCKED_UNTIL] = time() + $lockoutSeconds;
         }
     }
 
-    public static function resetPinAttempts(): void
+    public static function resetLoginAttempts(): void
     {
-        unset($_SESSION[self::KEY_PIN_ATTEMPTS], $_SESSION[self::KEY_PIN_LOCKED_UNTIL]);
+        unset($_SESSION[self::KEY_LOGIN_ATTEMPTS], $_SESSION[self::KEY_LOGIN_LOCKED_UNTIL]);
     }
 
-    public static function isPinLocked(): bool
+    public static function isLoginLocked(): bool
     {
-        $until = $_SESSION[self::KEY_PIN_LOCKED_UNTIL] ?? null;
+        $until = $_SESSION[self::KEY_LOGIN_LOCKED_UNTIL] ?? null;
 
         return $until !== null && time() < (int) $until;
     }

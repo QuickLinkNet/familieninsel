@@ -25,6 +25,18 @@ final class BuildingRepository
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findByKey(string $key): ?array
+    {
+        $statement = $this->pdo->prepare('SELECT * FROM buildings WHERE key = :key LIMIT 1');
+        $statement->execute(['key' => $key]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : $row;
+    }
+
+    /**
      * @return array<int, array{resource_id: int, required_amount: int}>
      */
     public function findCosts(int $buildingId): array

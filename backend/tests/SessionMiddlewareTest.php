@@ -56,36 +56,22 @@ final class SessionMiddlewareTest extends TestCase
         self::assertSame('FORBIDDEN', json_decode((string) $output, true)['error']['code']);
     }
 
-    public function testRequireParentFailsWhenNotPinUnlocked(): void
+    public function testRequireParentSucceedsForParentRole(): void
     {
         Session::setFamily(1);
         Session::selectProfile(3, 'parent');
-
-        ob_start();
-        $result = RequireParent::check();
-        $output = ob_get_clean();
-
-        self::assertFalse($result);
-        self::assertSame('PARENT_PIN_REQUIRED', json_decode((string) $output, true)['error']['code']);
-    }
-
-    public function testRequireParentSucceedsAfterPinUnlock(): void
-    {
-        Session::setFamily(1);
-        Session::selectProfile(3, 'parent');
-        Session::unlockParent(900);
 
         self::assertTrue(RequireParent::check());
     }
 
-    public function testPinLockoutAfterMaxAttempts(): void
+    public function testLoginLockoutAfterMaxAttempts(): void
     {
-        Session::registerFailedPinAttempt(3, 60);
-        Session::registerFailedPinAttempt(3, 60);
-        self::assertFalse(Session::isPinLocked());
+        Session::registerFailedLoginAttempt(3, 60);
+        Session::registerFailedLoginAttempt(3, 60);
+        self::assertFalse(Session::isLoginLocked());
 
-        Session::registerFailedPinAttempt(3, 60);
-        self::assertTrue(Session::isPinLocked());
+        Session::registerFailedLoginAttempt(3, 60);
+        self::assertTrue(Session::isLoginLocked());
     }
 
     public function testCsrfAllowsSafeMethodsWithoutToken(): void
