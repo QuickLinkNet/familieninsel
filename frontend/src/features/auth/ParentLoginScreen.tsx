@@ -41,6 +41,13 @@ export function ParentLoginScreen() {
   const [statusText, setStatusText] = useState('Bitte gib deinen PIN ein');
   const [verifying, setVerifying] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Zusaetzlich zum React-State gehaltener, synchron aktueller PIN-Wert:
+  // appendDigit kann bei sehr schnell aufeinanderfolgenden Tastendruecken
+  // (z.B. Auto-Klicks/sehr schnelles Tippen) mehrfach ausgeloest werden,
+  // bevor React den vorherigen setPin-Aufruf gerendert hat - ueber den Ref
+  // bleibt der tatsaechliche Eingabestand immer korrekt, unabhaengig vom
+  // React-Render-Zeitpunkt.
+  const pinRef = useRef('');
 
   useEffect(() => {
     void loadParentCandidates();
@@ -62,6 +69,7 @@ export function ParentLoginScreen() {
     setSelectedId(id);
     setPhase('leavingToPin');
     after(TRANSITION_MS, () => {
+      pinRef.current = '';
       setPin('');
       setPinError(false);
       setStatusText('Bitte gib deinen PIN ein');
@@ -73,6 +81,7 @@ export function ParentLoginScreen() {
     setPhase('leavingToSelect');
     after(TRANSITION_MS, () => {
       setSelectedId(null);
+      pinRef.current = '';
       setPin('');
       setPinError(false);
       setPhase('select');
@@ -99,6 +108,7 @@ export function ParentLoginScreen() {
     setPinError(true);
     setStatusText('Hmm… der PIN stimmt nicht.');
     after(ERROR_DISPLAY_MS, () => {
+      pinRef.current = '';
       setPin('');
       setPinError(false);
       setStatusText('Bitte gib deinen PIN ein');
@@ -106,13 +116,13 @@ export function ParentLoginScreen() {
   }
 
   function appendDigit(digit: string): void {
-    if (verifying || pinError || pin.length >= PIN_LENGTH) {
+    if (verifying || pinError || pinRef.current.length >= PIN_LENGTH) {
       return;
     }
-    const nextPin = pin + digit;
-    setPin(nextPin);
-    if (nextPin.length === PIN_LENGTH) {
-      void submitPin(nextPin);
+    pinRef.current += digit;
+    setPin(pinRef.current);
+    if (pinRef.current.length === PIN_LENGTH) {
+      void submitPin(pinRef.current);
     }
   }
 
@@ -120,13 +130,15 @@ export function ParentLoginScreen() {
     if (verifying || pinError) {
       return;
     }
-    setPin((current) => current.slice(0, -1));
+    pinRef.current = pinRef.current.slice(0, -1);
+    setPin(pinRef.current);
   }
 
   function resetPin(): void {
     if (verifying || pinError) {
       return;
     }
+    pinRef.current = '';
     setPin('');
   }
 
@@ -195,7 +207,15 @@ export function ParentLoginScreen() {
       <div className={`auth-panel pin-panel${phase === 'leavingToPin' ? ' pin-panel--entering-from' : ''}`}>
         {phase !== 'success' && (
           <button type="button" className="pin-panel__back" onClick={goBackToSelect} aria-label="Zurück">
-            ←
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M15 5 L8 12 L15 19"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         )}
 
@@ -223,7 +243,21 @@ export function ParentLoginScreen() {
         <h1 className="auth-panel__title pin-panel__name">{selectedParent?.name}</h1>
         <p className={`pin-panel__status${pinError ? ' pin-panel__status--error' : ''}`}>{statusText}</p>
 
-        <PinDots length={PIN_LENGTH} filledCount={pin.length} error={pinError} />
+        {phase === 'success' ? (
+          <span className="pin-panel__success-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 13 L10 18 L19 7"
+                stroke="#3a2610"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        ) : (
+          <PinDots length={PIN_LENGTH} filledCount={pin.length} error={pinError} />
+        )}
 
         {phase !== 'success' && (
           <PinKeypad onDigit={appendDigit} onBackspace={removeLastDigit} onReset={resetPin} disabled={verifying || pinError} />

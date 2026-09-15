@@ -600,32 +600,34 @@ select {
 }
 
 .loading-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   text-align: center;
-  padding: 24px;
-  color: var(--text-muted);
+  color: #f3d9a4;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
-.loading-hint::after {
-  content: '';
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  margin-left: 8px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  vertical-align: middle;
-  animation: familieninsel-spin 0.8s linear infinite;
+.loading-hint__compass {
+  width: 96px;
+  height: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+  animation: compass-search 2.4s ease-in-out infinite;
 }
 
-@keyframes familieninsel-spin {
-  to {
-    transform: rotate(360deg);
+@keyframes compass-search {
+  0%,
+  100% {
+    transform: rotate(-12deg);
+  }
+  50% {
+    transform: rotate(12deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loading-hint::after {
+  .loading-hint__compass {
     animation: none;
   }
 }
