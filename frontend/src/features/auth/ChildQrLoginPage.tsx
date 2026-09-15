@@ -5,14 +5,19 @@ import { useAuth } from './AuthContext';
 type LoginStatus = 'pending' | 'success' | 'error';
 
 export function ChildQrLoginPage() {
+  const { loginWithQrToken, error, loading } = useAuth();
   const { token } = useParams<{ token: string }>();
-  const { loginWithQrToken, error } = useAuth();
   const navigate = useNavigate();
   const [status, setStatus] = useState<LoginStatus>('pending');
   const attempted = useRef(false);
 
   useEffect(() => {
-    if (attempted.current || token === undefined) {
+    // AuthProvider muss zuerst per /auth/session das CSRF-Token besorgen
+    // (siehe AuthContext.refresh()) - sonst geht dieser Login-Request ohne
+    // Token raus und wird server-seitig als "Ungueltiges CSRF-Token"
+    // abgelehnt. ChildQrLoginPage liegt bewusst ausserhalb von AuthGate,
+    // muss den Ladezustand also selbst abwarten.
+    if (loading || attempted.current || token === undefined) {
       return;
     }
     attempted.current = true;
@@ -25,7 +30,7 @@ export function ChildQrLoginPage() {
         setStatus('error');
       }
     });
-  }, [token, loginWithQrToken, navigate]);
+  }, [loading, token, loginWithQrToken, navigate]);
 
   return (
     <main className="auth-screen">
