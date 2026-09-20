@@ -43,6 +43,15 @@ const STAGE_IMAGES: Record<string, Record<number, StageImage>> = {
 
 const FALLBACK_STAGE_IMAGE: StageImage = { src: bauplatz, centerXPct: 49.5, bottomPct: 83.0 };
 
+/**
+ * Nur das Bild einer Baustufe, ohne die Positionierungs-Kalibrierung fuer
+ * die Insel-Karte - fuer Stellen wie RewardReveal, die das Gebaeude
+ * freistehend (nicht auf der Karte platziert) zeigen wollen.
+ */
+export function stageImageSrc(buildingKey: string, stage: number): string {
+  return (STAGE_IMAGES[buildingKey]?.[stage] ?? FALLBACK_STAGE_IMAGE).src;
+}
+
 interface BuildingSpritePlot {
   left: number;
   top: number;

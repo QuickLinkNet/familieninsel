@@ -94,4 +94,32 @@ final class PlayerServiceTest extends TestCase
         self::assertTrue($first['success']);
         self::assertTrue($second['success']);
     }
+
+    public function testChildCanMarkOwnRewardsSeen(): void
+    {
+        $result = $this->playerService->markRewardsSeen($this->familyId, $this->emilId, $this->emilId);
+
+        self::assertTrue($result['success']);
+        $seenAt = $this->pdo
+            ->query("SELECT last_reward_seen_at FROM players WHERE id = {$this->emilId}")
+            ->fetchColumn();
+        self::assertNotNull($seenAt);
+    }
+
+    public function testChildCannotMarkRewardsSeenForSomeoneElse(): void
+    {
+        $result = $this->playerService->markRewardsSeen($this->familyId, $this->manuelId, $this->emilId);
+
+        self::assertFalse($result['success']);
+        self::assertSame('FORBIDDEN', $result['code']);
+    }
+
+    public function testParentCannotMarkRewardsSeenForChildEither(): void
+    {
+        // Anders als beim Intro gibt es hier bewusst keine Eltern-Ausnahme.
+        $result = $this->playerService->markRewardsSeen($this->familyId, $this->emilId, $this->manuelId);
+
+        self::assertFalse($result['success']);
+        self::assertSame('FORBIDDEN', $result['code']);
+    }
 }

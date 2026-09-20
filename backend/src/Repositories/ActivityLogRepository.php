@@ -33,6 +33,22 @@ final class ActivityLogRepository
     /**
      * @return array<int, array<string, mixed>>
      */
+    public function findByFamilyAndTypeSince(int $familyId, string $eventType, ?string $since): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT * FROM activity_log
+             WHERE family_id = :family_id AND event_type = :event_type
+               AND (:since IS NULL OR created_at > :since)
+             ORDER BY created_at ASC',
+        );
+        $statement->execute(['family_id' => $familyId, 'event_type' => $eventType, 'since' => $since]);
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function findRecentForFamily(int $familyId, int $limit = 50): array
     {
         $statement = $this->pdo->prepare(

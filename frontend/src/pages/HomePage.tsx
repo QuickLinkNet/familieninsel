@@ -17,7 +17,10 @@ import { IslandMap } from '../features/island/IslandMap';
 import { DashboardOverlay } from '../features/island/DashboardOverlay';
 import { IntroStory } from '../features/onboarding/IntroStory';
 import { OnboardingSpotlight } from '../features/onboarding/OnboardingSpotlight';
+import { RewardReveal } from '../features/rewards/RewardReveal';
 import { markIntroSeen } from '../services/playerService';
+import { acknowledgeRewardUpdates } from '../services/rewardService';
+import { useRewardUpdates } from '../hooks/useRewardUpdates';
 
 export function HomePage() {
   const { session, players, logout, refreshPlayers } = useAuth();
@@ -35,8 +38,29 @@ export function HomePage() {
   const showIntro =
     session?.playerRole === 'child' && currentPlayer !== null && currentPlayer.introSeenAt === null;
 
+  // RewardReveal (features/rewards/) ist bewusst nur fuer Kinder gedacht und
+  // wartet, bis das einmalige Intro (falls noetig) durch ist.
+  const canShowRewardReveal = session?.playerRole === 'child' && currentPlayer !== null && !showIntro;
+  const { updates: rewardUpdates, refresh: refreshRewardUpdates } = useRewardUpdates(
+    canShowRewardReveal ? currentPlayer.id : null,
+  );
+  const showRewardReveal = canShowRewardReveal && rewardUpdates.hasUpdates;
+
   async function refreshAll(): Promise<void> {
     await Promise.all([refresh(), refreshBuildings(), refreshActivity(), refreshMinigames()]);
+  }
+
+  async function handleRewardRevealFinished(): Promise<void> {
+    if (currentPlayer !== null) {
+      try {
+        await acknowledgeRewardUpdates(currentPlayer.id);
+      } catch {
+        // Kein Blocker: schlimmstenfalls sieht das Kind denselben Reveal
+        // beim naechsten Laden noch einmal.
+      }
+      await refreshRewardUpdates();
+    }
+    await refreshAll();
   }
 
   async function handleIntroFinished(): Promise<void> {
@@ -169,6 +193,16 @@ export function HomePage() {
           targetSelector=".task-card"
           message="Das ist deine Aufgabe! Wenn du fertig bist, tippe auf 'Erledigt!'"
           onDismiss={() => setShowFirstTaskHint(false)}
+        />
+      )}
+
+      {showRewardReveal && (
+        <RewardReveal
+          events={rewardUpdates.events}
+          resources={resources}
+          onFinished={() => {
+            void handleRewardRevealFinished();
+          }}
         />
       )}
     </main>

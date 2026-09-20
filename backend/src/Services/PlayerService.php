@@ -241,6 +241,30 @@ final class PlayerService
         return ['success' => true];
     }
 
+    /**
+     * Markiert alle bis jetzt aufgelaufenen Aufgaben-Belohnungen als gesehen
+     * (RewardReveal-Cursor) - im Gegensatz zu markIntroSeen bewusst nur fuer
+     * das eigene Profil, da es keinen sinnvollen Fall gibt, in dem ein
+     * Elternteil den Belohnungs-Cursor eines Kindes zuruecksetzen sollte.
+     *
+     * @return array{success: true}|array{success: false, code: string, message: string}
+     */
+    public function markRewardsSeen(int $familyId, int $playerId, int $actingPlayerId): array
+    {
+        $player = $this->players->findByIdAndFamily($playerId, $familyId);
+        if ($player === null) {
+            return $this->error('PLAYER_NOT_FOUND', 'Dieses Profil wurde nicht gefunden.');
+        }
+
+        if ($playerId !== $actingPlayerId) {
+            return $this->error('FORBIDDEN', 'Belohnungen koennen nur fuer das eigene Profil markiert werden.');
+        }
+
+        $this->players->markRewardsSeen($playerId);
+
+        return ['success' => true];
+    }
+
     private function slugify(string $name): string
     {
         $ascii = strtr($name, ['ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss', 'Ä' => 'ae', 'Ö' => 'oe', 'Ü' => 'ue']);

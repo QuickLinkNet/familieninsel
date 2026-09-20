@@ -158,6 +158,23 @@ final class PlayerRepository
         $statement->execute(['id' => $id]);
     }
 
+    public function findRewardCursor(int $id): ?string
+    {
+        $statement = $this->pdo->prepare('SELECT last_reward_seen_at FROM players WHERE id = :id LIMIT 1');
+        $statement->execute(['id' => $id]);
+        $value = $statement->fetchColumn();
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
+    public function markRewardsSeen(int $id): void
+    {
+        $statement = $this->pdo->prepare(
+            "UPDATE players SET last_reward_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = :id",
+        );
+        $statement->execute(['id' => $id]);
+    }
+
     public function createChild(int $familyId, string $name, ?int $age, string $avatarKey): int
     {
         $statement = $this->pdo->prepare(

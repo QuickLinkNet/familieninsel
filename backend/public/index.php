@@ -12,6 +12,7 @@ use App\Controllers\MinigamesController;
 use App\Controllers\PlayerPhotoController;
 use App\Controllers\PlayersController;
 use App\Controllers\ResourcesController;
+use App\Controllers\RewardsController;
 use App\Controllers\TasksController;
 use App\Database\Connection;
 use App\Database\Migrator;
@@ -33,6 +34,7 @@ use App\Services\BuildingService;
 use App\Services\MinigameService;
 use App\Services\PlayerPhotoService;
 use App\Services\PlayerService;
+use App\Services\RewardRevealService;
 use App\Services\TaskService;
 use App\Support\JsonResponse;
 use App\Support\Logger;
@@ -104,6 +106,15 @@ $buildingService = new BuildingService(
 $buildingsController = new BuildingsController($buildingService);
 $activityController = new ActivityController($activityLogRepository);
 
+$rewardRevealService = new RewardRevealService(
+    $playerRepository,
+    new ResourceTransactionRepository($pdo),
+    $activityLogRepository,
+    $resourceRepository,
+    new BuildingRepository($pdo),
+);
+$rewardsController = new RewardsController($rewardRevealService, $playerService);
+
 $taskService = new TaskService(
     $pdo,
     new TaskRepository($pdo),
@@ -138,6 +149,8 @@ $router->get('/players/manage', [$playersController, 'manage']);
 $router->put('/players/{id}', [$playersController, 'update']);
 $router->post('/players/{id}/pin', [$playersController, 'setPin']);
 $router->post('/players/{id}/intro-seen', [$playersController, 'markIntroSeen']);
+$router->get('/players/{id}/reward-updates', [$rewardsController, 'index']);
+$router->post('/players/{id}/reward-updates/ack', [$rewardsController, 'acknowledge']);
 $router->post('/players/{id}/activate', [$playersController, 'activate']);
 $router->post('/players/{id}/deactivate', [$playersController, 'deactivate']);
 $router->get('/players/{id}/login-token', [$playersController, 'loginTokenStatus']);

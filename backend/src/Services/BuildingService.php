@@ -148,6 +148,8 @@ final class BuildingService
      *     beforeStage: int|null,
      *     afterStage: int|null,
      *     justCompleted: bool,
+     *     unlockedMinigameName: string|null,
+     *     unlockedBuildingName: string|null,
      *     familyBuildingId: int|null,
      *     buildingId: int|null,
      * }
@@ -168,6 +170,8 @@ final class BuildingService
                 'beforeStage' => null,
                 'afterStage' => null,
                 'justCompleted' => false,
+                'unlockedMinigameName' => null,
+                'unlockedBuildingName' => null,
                 'familyBuildingId' => null,
                 'buildingId' => null,
             ];
@@ -216,6 +220,8 @@ final class BuildingService
                 'beforeStage' => $beforeStage,
                 'afterStage' => $beforeStage,
                 'justCompleted' => false,
+                'unlockedMinigameName' => null,
+                'unlockedBuildingName' => null,
                 'familyBuildingId' => $familyBuildingId,
                 'buildingId' => $buildingId,
             ];
@@ -245,6 +251,8 @@ final class BuildingService
             'beforeStage' => $beforeStage,
             'afterStage' => $applied['newStage'],
             'justCompleted' => $applied['justCompleted'],
+            'unlockedMinigameName' => $applied['unlockedMinigameName'],
+            'unlockedBuildingName' => $applied['unlockedBuildingName'],
             'familyBuildingId' => $familyBuildingId,
             'buildingId' => $buildingId,
         ];
@@ -258,7 +266,14 @@ final class BuildingService
      * Transaktion - der Aufrufer haelt die Transaktionsklammer.
      *
      * @param array<int, int> $amountsByResourceId resource_id => bereits gedeckelte Menge
-     * @return array{newStage: int, justCompleted: bool, contributedTotal: int, requiredTotal: int}
+     * @return array{
+     *     newStage: int,
+     *     justCompleted: bool,
+     *     contributedTotal: int,
+     *     requiredTotal: int,
+     *     unlockedMinigameName: string|null,
+     *     unlockedBuildingName: string|null,
+     * }
      */
     private function applyContribution(
         int $familyId,
@@ -284,6 +299,8 @@ final class BuildingService
 
         $newStage = $this->calculateStage($contributedTotal, $requiredTotal);
         $justCompleted = false;
+        $unlockedMinigameName = null;
+        $unlockedBuildingName = null;
 
         if ($newStage > $oldStage) {
             $this->familyBuildings->updateStage($familyBuildingId, $newStage);
@@ -319,6 +336,7 @@ final class BuildingService
                             'minigame_unlocked',
                             sprintf('%s wurde freigeschaltet!', $minigame['name']),
                         );
+                        $unlockedMinigameName = $minigame['name'];
                     }
                 }
 
@@ -333,6 +351,7 @@ final class BuildingService
                             'building_unlocked',
                             sprintf('Neues Bauprojekt freigeschaltet: %s!', $nextBuilding['name']),
                         );
+                        $unlockedBuildingName = $nextBuilding['name'];
                     }
                 }
             }
@@ -343,6 +362,8 @@ final class BuildingService
             'justCompleted' => $justCompleted,
             'contributedTotal' => $contributedTotal,
             'requiredTotal' => $requiredTotal,
+            'unlockedMinigameName' => $unlockedMinigameName,
+            'unlockedBuildingName' => $unlockedBuildingName,
         ];
     }
 

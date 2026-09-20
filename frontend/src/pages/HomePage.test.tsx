@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomePage } from './HomePage';
 import { AuthProvider } from '../features/auth/AuthContext';
 import * as authService from '../services/authService';
+import * as rewardService from '../services/rewardService';
 
 function renderHomePage(): ReturnType<typeof render> {
   return render(
@@ -23,6 +24,11 @@ vi.mock('../services/authService', () => ({
 
 vi.mock('../services/playerService', () => ({
   markIntroSeen: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../services/rewardService', () => ({
+  fetchRewardUpdates: vi.fn(),
+  acknowledgeRewardUpdates: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../services/taskService', () => ({
@@ -66,6 +72,7 @@ const parentSession = {
 
 beforeEach(() => {
   vi.mocked(authService.fetchSession).mockResolvedValue(childSession);
+  vi.mocked(rewardService.fetchRewardUpdates).mockResolvedValue({ hasUpdates: false, events: [] });
 });
 
 describe('HomePage', () => {
@@ -111,5 +118,41 @@ describe('HomePage', () => {
 
     await screen.findByText('Manuel');
     expect(screen.queryByText('Ein wilder Sturm hat euer Boot erwischt!')).not.toBeInTheDocument();
+  });
+
+  it('zeigt RewardReveal fuer ein Kind mit ungesehenen Belohnungen und markiert sie beim Abschluss als gesehen', async () => {
+    vi.mocked(authService.fetchPlayers).mockResolvedValue([
+      { id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil', hasPhoto: false, introSeenAt: '2026-01-01T00:00:00.000Z' },
+    ]);
+    vi.mocked(rewardService.fetchRewardUpdates).mockResolvedValue({
+      hasUpdates: true,
+      events: [{ taskId: 42, taskTitle: 'Zimmer aufraeumen', rewards: [{ resourceKey: 'wood', amount: 3 }], building: null }],
+    });
+
+    renderHomePage();
+
+    expect(await screen.findByText('Deine Aufgabe hat unserer Insel geholfen!')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Weiter zur Insel' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter zur Insel' }));
+
+    await waitFor(() => expect(vi.mocked(rewardService.acknowledgeRewardUpdates)).toHaveBeenCalledWith(3));
+  });
+
+  it('zeigt kein RewardReveal fuer Eltern', async () => {
+    vi.mocked(authService.fetchSession).mockResolvedValue(parentSession);
+    vi.mocked(authService.fetchPlayers).mockResolvedValue([
+      { id: 1, name: 'Manuel', age: null, role: 'parent', avatarKey: 'manuel', hasPhoto: false, introSeenAt: null },
+    ]);
+    vi.mocked(rewardService.fetchRewardUpdates).mockResolvedValue({
+      hasUpdates: true,
+      events: [{ taskId: 42, taskTitle: 'Zimmer aufraeumen', rewards: [{ resourceKey: 'wood', amount: 3 }], building: null }],
+    });
+
+    renderHomePage();
+
+    await screen.findByText('Manuel');
+    expect(screen.queryByText('Deine Aufgabe hat unserer Insel geholfen!')).not.toBeInTheDocument();
   });
 });
