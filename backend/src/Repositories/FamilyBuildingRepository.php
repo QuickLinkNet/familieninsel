@@ -29,6 +29,23 @@ final class FamilyBuildingRepository
     }
 
     /**
+     * Das eine aktive Bauprojekt einer Familie (laut Spec immer hoechstens
+     * eines gleichzeitig "in_progress").
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findActiveInProgress(int $familyId): ?array
+    {
+        $statement = $this->pdo->prepare(
+            "SELECT * FROM family_buildings WHERE family_id = :family_id AND status = 'in_progress' LIMIT 1",
+        );
+        $statement->execute(['family_id' => $familyId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : $row;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function findByFamilyAndBuilding(int $familyId, int $buildingId): ?array

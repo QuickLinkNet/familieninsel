@@ -21,6 +21,7 @@ final class TaskService
         private readonly ResourceTransactionRepository $transactions,
         private readonly ActivityLogRepository $activityLog,
         private readonly PlayerRepository $players,
+        private readonly BuildingService $buildingService,
     ) {
     }
 
@@ -139,6 +140,8 @@ final class TaskService
                 ];
             }
 
+            $earnedByResource = [];
+
             foreach ($this->tasks->findRewardsForTask($taskId) as $reward) {
                 $resourceId = (int) $reward['resource_id'];
                 $amount = (int) $reward['amount'];
@@ -157,6 +160,7 @@ final class TaskService
                     $taskId,
                     sprintf('Belohnung fuer Aufgabe "%s"', $task['title']),
                 );
+                $earnedByResource[$resourceId] = ($earnedByResource[$resourceId] ?? 0) + $amount;
             }
 
             $this->activityLog->record(
@@ -165,6 +169,29 @@ final class TaskService
                 'task_approved',
                 sprintf('Aufgabe "%s" wurde bestaetigt und belohnt.', $task['title']),
             );
+
+            // Frisch verdiente Rohstoffe fliessen automatisch ins aktive
+            // Bauprojekt (gedeckelt auf den Restbedarf) - direkte Kausalitaet
+            // "Quest erledigt -> Insel veraendert sich" fuer den spaeteren
+            // RewardReveal. Nur der tatsaechliche Ueberschuss bleibt im Lager.
+            if ($earnedByResource !== []) {
+                $investment = $this->buildingService->investEarnedResourcesFromTask(
+                    $familyId,
+                    (int) $task['assigned_player_id'],
+                    $taskId,
+                    $earnedByResource,
+                );
+
+                if ($investment['invested'] !== []) {
+                    $this->activityLog->record(
+                        $familyId,
+                        (int) $task['assigned_player_id'],
+                        'task_auto_contribution',
+                        sprintf('Belohnung aus "%s" ist ins Bauprojekt geflossen.', $task['title']),
+                        array_merge(['taskId' => $taskId], $investment),
+                    );
+                }
+            }
 
             $this->pdo->commit();
         } catch (Throwable $e) {

@@ -8,13 +8,17 @@ use App\Database\Connection;
 use App\Database\Migrator;
 use App\Database\Seeder;
 use App\Repositories\ActivityLogRepository;
+use App\Repositories\BuildingRepository;
+use App\Repositories\FamilyBuildingRepository;
 use App\Repositories\FamilyRepository;
+use App\Repositories\MinigameRepository;
 use App\Repositories\PlayerLoginTokenRepository;
 use App\Repositories\PlayerRepository;
 use App\Repositories\ResourceRepository;
 use App\Repositories\ResourceTransactionRepository;
 use App\Repositories\TaskRepository;
 use App\Services\AuthService;
+use App\Services\BuildingService;
 use App\Services\TaskService;
 use PDO;
 use PHPUnit\Framework\TestCase;
@@ -59,6 +63,16 @@ final class TaskServiceTest extends TestCase
         $resources = new ResourceRepository($this->pdo);
         $this->woodResourceId = (int) $resources->findIdByKey('wood');
 
+        $buildingService = new BuildingService(
+            $this->pdo,
+            new BuildingRepository($this->pdo),
+            new FamilyBuildingRepository($this->pdo),
+            $resources,
+            new ResourceTransactionRepository($this->pdo),
+            new ActivityLogRepository($this->pdo),
+            new MinigameRepository($this->pdo),
+        );
+
         $this->taskService = new TaskService(
             $this->pdo,
             new TaskRepository($this->pdo),
@@ -66,6 +80,7 @@ final class TaskServiceTest extends TestCase
             new ResourceTransactionRepository($this->pdo),
             new ActivityLogRepository($this->pdo),
             new PlayerRepository($this->pdo),
+            $buildingService,
         );
     }
 
@@ -273,5 +288,110 @@ final class TaskServiceTest extends TestCase
 
         self::assertFalse($result['success']);
         self::assertSame('VALIDATION_ERROR', $result['code']);
+    }
+
+    private function seedActiveBeachHut(): void
+    {
+        $seeder = new Seeder($this->pdo);
+        $seeder->seedBuildingCatalogIfEmpty();
+        $seeder->seedActiveFamilyBuildingIfEmpty();
+    }
+
+    private function woodBalance(): int
+    {
+        return (int) $this->pdo->query(
+            "SELECT amount FROM family_resources WHERE family_id = {$this->familyId} AND resource_id = {$this->woodResourceId}",
+        )->fetchColumn();
+    }
+
+    private function contributedWood(): int
+    {
+        return (int) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM building_contributions WHERE resource_id = {$this->woodResourceId}",
+        )->fetchColumn();
+    }
+
+    public function testApprovalFullyFundsActiveBuildingWhenRewardCoversRemainingNeed(): void
+    {
+        $this->seedActiveBeachHut();
+        // Holz-Bedarf der Strandhuette ist 20 - exakt die Belohnung.
+        $taskId = $this->createTask($this->emilId, ['wood' => 20]);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+
+        $approve = $this->taskService->approveTask($taskId, $this->familyId, $this->manuelId);
+
+        self::assertTrue($approve['success']);
+        self::assertSame(0, $this->woodBalance());
+        self::assertSame(20, $this->contributedWood());
+    }
+
+    public function testApprovalWithOverflowSplitsBetweenBuildingAndLager(): void
+    {
+        $this->seedActiveBeachHut();
+        // Bedarf ist 20, die Belohnung ist hoeher - der Rest muss im Lager landen.
+        $taskId = $this->createTask($this->emilId, ['wood' => 25]);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+
+        $this->taskService->approveTask($taskId, $this->familyId, $this->manuelId);
+
+        self::assertSame(5, $this->woodBalance());
+        self::assertSame(20, $this->contributedWood());
+    }
+
+    public function testApprovalWithoutActiveBuildingCreditsFullAmountToLager(): void
+    {
+        // Kein Gebaeude geseedet - entspricht dem bisherigen Verhalten unveraendert.
+        $taskId = $this->createTask($this->emilId, ['wood' => 7]);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+
+        $this->taskService->approveTask($taskId, $this->familyId, $this->manuelId);
+
+        self::assertSame(7, $this->woodBalance());
+        self::assertSame(0, $this->contributedWood());
+    }
+
+    public function testApprovalAfterBuildingCompletionCreditsFullAmountToLager(): void
+    {
+        $this->seedActiveBeachHut();
+        // Simuliert "kein aktives Gebaeude mehr" ohne den Wachturm mit zu seeden.
+        $this->pdo->exec("UPDATE family_buildings SET status = 'completed' WHERE family_id = {$this->familyId}");
+
+        $taskId = $this->createTask($this->emilId, ['wood' => 5]);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+        $this->taskService->approveTask($taskId, $this->familyId, $this->manuelId);
+
+        self::assertSame(5, $this->woodBalance());
+    }
+
+    public function testApprovalRecordsAutoContributionActivityWithBeforeAfterPercent(): void
+    {
+        $this->seedActiveBeachHut();
+        $taskId = $this->createTask($this->emilId, ['wood' => 10]);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+        $this->taskService->approveTask($taskId, $this->familyId, $this->manuelId);
+
+        $row = $this->pdo->query(
+            "SELECT metadata_json FROM activity_log WHERE event_type = 'task_auto_contribution' ORDER BY id DESC LIMIT 1",
+        )->fetch(PDO::FETCH_ASSOC);
+
+        self::assertNotFalse($row);
+        $metadata = json_decode((string) $row['metadata_json'], true);
+        self::assertSame($taskId, $metadata['taskId']);
+        self::assertSame(0, $metadata['beforePercent']);
+        self::assertGreaterThan(0, $metadata['afterPercent']);
+        self::assertFalse($metadata['justCompleted']);
+    }
+
+    public function testApprovalWithoutInvestmentDoesNotRecordAutoContributionActivity(): void
+    {
+        // Kein Gebaeude aktiv -> nichts wird investiert -> kein Reveal-Event noetig.
+        $taskId = $this->createTask($this->emilId, ['wood' => 3]);
+        $this->taskService->completeTask($taskId, $this->familyId, $this->emilId);
+        $this->taskService->approveTask($taskId, $this->familyId, $this->manuelId);
+
+        $count = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM activity_log WHERE event_type = 'task_auto_contribution'",
+        )->fetchColumn();
+        self::assertSame(0, $count);
     }
 }

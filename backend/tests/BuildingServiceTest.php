@@ -294,4 +294,93 @@ final class BuildingServiceTest extends TestCase
         self::assertSame(3, $balances[$this->woodResourceId] ?? 0);
         self::assertGreaterThanOrEqual(0, $balances[$this->metalResourceId] ?? 0);
     }
+
+    public function testInvestEarnedResourcesFromTaskFillsBuildingAndReturnsOverflow(): void
+    {
+        // Nachbildung dessen, was TaskService::approveTask vorher schon getan hat:
+        // die verdiente Menge ist bereits im Familienlager gutgeschrieben.
+        $this->grantResources($this->woodResourceId, 25);
+
+        $result = $this->buildingService->investEarnedResourcesFromTask(
+            $this->familyId,
+            $this->manuelId,
+            1,
+            [$this->woodResourceId => 25],
+        );
+
+        self::assertSame(20, $result['invested'][$this->woodResourceId] ?? 0);
+        self::assertSame(5, $result['overflow'][$this->woodResourceId] ?? 0);
+        self::assertSame(0, $result['beforePercent']);
+        self::assertGreaterThan(0, $result['afterPercent']);
+        self::assertFalse($result['justCompleted']);
+
+        // Nur der Ueberschuss bleibt im Lager, der Rest wurde ins Gebaeude gebucht.
+        $balances = $this->resourceRepository->findFamilyBalances($this->familyId);
+        self::assertSame(5, $balances[$this->woodResourceId] ?? 0);
+
+        $contributedWood = (int) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM building_contributions WHERE resource_id = {$this->woodResourceId}",
+        )->fetchColumn();
+        self::assertSame(20, $contributedWood);
+    }
+
+    public function testInvestEarnedResourcesFromTaskWithoutActiveBuildingLeavesEverythingAsOverflow(): void
+    {
+        $this->pdo->exec('UPDATE family_buildings SET status = \'completed\'');
+
+        $result = $this->buildingService->investEarnedResourcesFromTask(
+            $this->familyId,
+            $this->manuelId,
+            1,
+            [$this->woodResourceId => 10],
+        );
+
+        self::assertSame([], $result['invested']);
+        self::assertSame(10, $result['overflow'][$this->woodResourceId] ?? 0);
+        self::assertNull($result['beforePercent']);
+        self::assertNull($result['afterPercent']);
+        self::assertFalse($result['justCompleted']);
+    }
+
+    public function testInvestEarnedResourcesFromTaskCanCompleteBuildingAndUnlockChain(): void
+    {
+        $this->grantResources($this->woodResourceId, 20);
+        $this->grantResources($this->metalResourceId, 10);
+        $this->grantResources($this->fabricResourceId, 8);
+        $this->grantResources($this->ropeResourceId, 5);
+
+        $result = $this->buildingService->investEarnedResourcesFromTask($this->familyId, $this->manuelId, 1, [
+            $this->woodResourceId => 20,
+            $this->metalResourceId => 10,
+            $this->fabricResourceId => 8,
+            $this->ropeResourceId => 5,
+        ]);
+
+        self::assertTrue($result['justCompleted']);
+        self::assertSame(100, $result['afterPercent']);
+
+        $building = $this->findBuildingByKey('beach_hut');
+        self::assertSame('completed', $building['status']);
+
+        self::assertNotNull($this->findBuildingByKey('watchtower'));
+    }
+
+    public function testInvestEarnedResourcesFromTaskIgnoresResourceNotNeededByBuilding(): void
+    {
+        $starsResourceId = (int) $this->resourceRepository->findIdByKey('stars');
+        $this->resourceRepository->incrementBalance($this->familyId, $starsResourceId, 5);
+
+        $result = $this->buildingService->investEarnedResourcesFromTask(
+            $this->familyId,
+            $this->manuelId,
+            1,
+            [$starsResourceId => 5],
+        );
+
+        self::assertSame([], $result['invested']);
+        self::assertSame(5, $result['overflow'][$starsResourceId] ?? 0);
+
+        $balances = $this->resourceRepository->findFamilyBalances($this->familyId);
+        self::assertSame(5, $balances[$starsResourceId] ?? 0);
+    }
 }
