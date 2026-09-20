@@ -116,7 +116,7 @@ final class PlayerService
      * deaktivierter Profile (im Gegensatz zu AuthService::listActivePlayers,
      * das nur fuer aktive Profile im normalen Spielbetrieb gedacht ist).
      *
-     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string, is_active: bool}>
+     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string, is_active: bool, intro_seen_at: string|null}>
      */
     public function listAll(int $familyId): array
     {
@@ -128,6 +128,7 @@ final class PlayerService
                 'role' => $player['role'],
                 'avatar_key' => $player['avatar_key'],
                 'is_active' => ((int) $player['is_active']) === 1,
+                'intro_seen_at' => $player['intro_seen_at'],
             ],
             $this->players->findAllByFamily($familyId),
         );
@@ -210,6 +211,32 @@ final class PlayerService
         }
 
         $this->players->setActive($playerId, $active);
+
+        return ['success' => true];
+    }
+
+    /**
+     * Markiert das Story-Intro als gesehen. Selbstbedienung: das Kind selbst
+     * darf es fuer sich setzen (nach Durchlaufen von IntroStory), Eltern
+     * duerfen es zusaetzlich fuer jedes Familienmitglied setzen (z. B. um es
+     * bei Bedarf ueber die Familienverwaltung erneut zu triggern - siehe
+     * Plan). Jeder andere authentifizierte Nutzer darf es nur fuer sich
+     * selbst setzen.
+     *
+     * @return array{success: true}|array{success: false, code: string, message: string}
+     */
+    public function markIntroSeen(int $familyId, int $playerId, int $actingPlayerId, string $actingPlayerRole): array
+    {
+        $player = $this->players->findByIdAndFamily($playerId, $familyId);
+        if ($player === null) {
+            return $this->error('PLAYER_NOT_FOUND', 'Dieses Profil wurde nicht gefunden.');
+        }
+
+        if ($playerId !== $actingPlayerId && $actingPlayerRole !== 'parent') {
+            return $this->error('FORBIDDEN', 'Das Intro kann nur fuer das eigene Profil markiert werden.');
+        }
+
+        $this->players->markIntroSeen($playerId);
 
         return ['success' => true];
     }

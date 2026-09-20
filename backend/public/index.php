@@ -92,17 +92,6 @@ $playersController = new PlayersController($authService, $photoService, $playerS
 $playerPhotoController = new PlayerPhotoController($photoService, $playerRepository);
 $healthController = new HealthController($config['database']['path']);
 
-$taskService = new TaskService(
-    $pdo,
-    new TaskRepository($pdo),
-    $resourceRepository,
-    new ResourceTransactionRepository($pdo),
-    $activityLogRepository,
-    $playerRepository,
-);
-$tasksController = new TasksController($taskService);
-$resourcesController = new ResourcesController($resourceRepository);
-
 $buildingService = new BuildingService(
     $pdo,
     new BuildingRepository($pdo),
@@ -114,6 +103,18 @@ $buildingService = new BuildingService(
 );
 $buildingsController = new BuildingsController($buildingService);
 $activityController = new ActivityController($activityLogRepository);
+
+$taskService = new TaskService(
+    $pdo,
+    new TaskRepository($pdo),
+    $resourceRepository,
+    new ResourceTransactionRepository($pdo),
+    $activityLogRepository,
+    $playerRepository,
+    $buildingService,
+);
+$tasksController = new TasksController($taskService);
+$resourcesController = new ResourcesController($resourceRepository);
 
 $minigameService = new MinigameService(
     $pdo,
@@ -136,6 +137,7 @@ $router->post('/players', [$playersController, 'store']);
 $router->get('/players/manage', [$playersController, 'manage']);
 $router->put('/players/{id}', [$playersController, 'update']);
 $router->post('/players/{id}/pin', [$playersController, 'setPin']);
+$router->post('/players/{id}/intro-seen', [$playersController, 'markIntroSeen']);
 $router->post('/players/{id}/activate', [$playersController, 'activate']);
 $router->post('/players/{id}/deactivate', [$playersController, 'deactivate']);
 $router->get('/players/{id}/login-token', [$playersController, 'loginTokenStatus']);

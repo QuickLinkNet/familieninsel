@@ -13,12 +13,12 @@ final class PlayerRepository
     }
 
     /**
-     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string}>
+     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string, intro_seen_at: string|null}>
      */
     public function findActiveByFamily(int $familyId): array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id, name, age, role, avatar_key
+            'SELECT id, name, age, role, avatar_key, intro_seen_at
              FROM players
              WHERE family_id = :family_id AND is_active = 1
              ORDER BY id ASC',
@@ -92,12 +92,12 @@ final class PlayerRepository
      * deaktivierten Profilen, damit man sie dort wieder reaktivieren kann.
      * Eltern zuerst, danach Kinder nach Anlagereihenfolge.
      *
-     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string, is_active: int}>
+     * @return array<int, array{id: int, name: string, age: int|null, role: string, avatar_key: string, is_active: int, intro_seen_at: string|null}>
      */
     public function findAllByFamily(int $familyId): array
     {
         $statement = $this->pdo->prepare(
-            "SELECT id, name, age, role, avatar_key, is_active
+            "SELECT id, name, age, role, avatar_key, is_active, intro_seen_at
              FROM players
              WHERE family_id = :family_id
              ORDER BY CASE role WHEN 'parent' THEN 0 ELSE 1 END, id ASC",
@@ -148,6 +148,14 @@ final class PlayerRepository
         $statement->execute(['family_id' => $familyId]);
 
         return (int) $statement->fetchColumn();
+    }
+
+    public function markIntroSeen(int $id): void
+    {
+        $statement = $this->pdo->prepare(
+            "UPDATE players SET intro_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = :id",
+        );
+        $statement->execute(['id' => $id]);
     }
 
     public function createChild(int $familyId, string $name, ?int $age, string $avatarKey): int

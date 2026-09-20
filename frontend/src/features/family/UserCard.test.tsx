@@ -17,6 +17,7 @@ const parent: ManagedPlayer = {
   role: 'parent',
   avatarKey: 'manuel',
   hasPhoto: false,
+  introSeenAt: null,
   isActive: true,
 };
 
@@ -27,6 +28,7 @@ const child: ManagedPlayer = {
   role: 'child',
   avatarKey: 'emil',
   hasPhoto: false,
+  introSeenAt: null,
   isActive: true,
 };
 

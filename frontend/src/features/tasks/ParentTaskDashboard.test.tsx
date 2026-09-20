@@ -9,8 +9,8 @@ import type { Resource } from '../../types/resource';
 vi.mock('../../services/taskService');
 
 const players: Player[] = [
-  { id: 1, name: 'Manuel', age: null, role: 'parent', avatarKey: 'manuel', hasPhoto: false },
-  { id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil', hasPhoto: false },
+  { id: 1, name: 'Manuel', age: null, role: 'parent', avatarKey: 'manuel', hasPhoto: false, introSeenAt: null },
+  { id: 3, name: 'Emil', age: 5, role: 'child', avatarKey: 'emil', hasPhoto: false, introSeenAt: null },
 ];
 
 const resources: Resource[] = [{ id: 1, key: 'wood', name: 'Holz', iconKey: 'wood', amount: 0 }];

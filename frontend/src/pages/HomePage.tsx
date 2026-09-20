@@ -15,19 +15,43 @@ import { ActivityFeed } from '../features/island/ActivityFeed';
 import { MinigameSection } from '../features/minigames/MinigameSection';
 import { IslandMap } from '../features/island/IslandMap';
 import { DashboardOverlay } from '../features/island/DashboardOverlay';
+import { IntroStory } from '../features/onboarding/IntroStory';
+import { OnboardingSpotlight } from '../features/onboarding/OnboardingSpotlight';
+import { markIntroSeen } from '../services/playerService';
 
 export function HomePage() {
   const { session, players, logout, refreshPlayers } = useAuth();
   const [photoVersion, setPhotoVersion] = useState(0);
   const [overlayOpen, setOverlayOpen] = useState(false);
+  const [showFirstTaskHint, setShowFirstTaskHint] = useState(false);
   const { tasks, resources, loading, error, refresh } = useTasksAndResources();
   const { buildings, loading: buildingsLoading, error: buildingsError, refresh: refreshBuildings } = useBuildings();
   const { entries, refresh: refreshActivity } = useActivity();
   const { minigames, loading: minigamesLoading, refresh: refreshMinigames } = useMinigames();
   const currentPlayer = players.find((player) => player.id === session?.playerId) ?? null;
 
+  // Ein Kind, das sein Story-Intro noch nicht gesehen hat, bekommt es vor
+  // dem normalen Dashboard gezeigt - siehe features/onboarding/IntroStory.
+  const showIntro =
+    session?.playerRole === 'child' && currentPlayer !== null && currentPlayer.introSeenAt === null;
+
   async function refreshAll(): Promise<void> {
     await Promise.all([refresh(), refreshBuildings(), refreshActivity(), refreshMinigames()]);
+  }
+
+  async function handleIntroFinished(): Promise<void> {
+    if (currentPlayer !== null) {
+      try {
+        await markIntroSeen(currentPlayer.id);
+      } catch {
+        // Kein Blocker: das Kind soll trotzdem weiterspielen koennen, auch
+        // wenn das Merken fehlschlaegt - dann sieht es das Intro beim
+        // naechsten Login halt nochmal.
+      }
+      await refreshPlayers();
+    }
+    setOverlayOpen(true);
+    setShowFirstTaskHint(true);
   }
 
   return (
@@ -131,6 +155,22 @@ export function HomePage() {
 
         <ActivityFeed entries={entries} />
       </DashboardOverlay>
+
+      {showIntro && (
+        <IntroStory
+          onFinished={() => {
+            void handleIntroFinished();
+          }}
+        />
+      )}
+
+      {showFirstTaskHint && !showIntro && (
+        <OnboardingSpotlight
+          targetSelector=".task-card"
+          message="Das ist deine Aufgabe! Wenn du fertig bist, tippe auf 'Erledigt!'"
+          onDismiss={() => setShowFirstTaskHint(false)}
+        />
+      )}
     </main>
   );
 }

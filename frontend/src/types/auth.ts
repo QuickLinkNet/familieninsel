@@ -7,6 +7,7 @@ export interface Player {
   role: PlayerRole;
   avatarKey: string;
   hasPhoto: boolean;
+  introSeenAt: string | null;
 }
 
 export interface ParentCandidate {

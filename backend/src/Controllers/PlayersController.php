@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Middleware\RequireAuth;
 use App\Middleware\RequireParent;
 use App\Services\AuthService;
 use App\Services\PlayerPhotoService;
@@ -38,6 +39,7 @@ final class PlayersController
                 'role' => $player['role'],
                 'avatarKey' => $player['avatar_key'],
                 'hasPhoto' => $this->photoService->hasPhoto($familyId, (int) $player['id']),
+                'introSeenAt' => $player['intro_seen_at'],
             ],
             $this->authService->listActivePlayers($familyId),
         );
@@ -87,6 +89,7 @@ final class PlayersController
                 'avatarKey' => $player['avatar_key'],
                 'hasPhoto' => $this->photoService->hasPhoto($familyId, $player['id']),
                 'isActive' => $player['is_active'],
+                'introSeenAt' => $player['intro_seen_at'],
             ],
             $this->playerService->listAll($familyId),
         );
@@ -130,6 +133,24 @@ final class PlayersController
             (int) Session::familyId(),
             (int) $params['id'],
             (string) ($body['pin'] ?? ''),
+        );
+        $this->respond($result);
+    }
+
+    /**
+     * @param array{id: string} $params
+     */
+    public function markIntroSeen(array $params): void
+    {
+        if (!RequireAuth::check()) {
+            return;
+        }
+
+        $result = $this->playerService->markIntroSeen(
+            (int) Session::familyId(),
+            (int) $params['id'],
+            (int) Session::playerId(),
+            (string) Session::playerRole(),
         );
         $this->respond($result);
     }

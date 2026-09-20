@@ -25,6 +25,10 @@ export async function setParentPin(playerId: number, pin: string): Promise<void>
   await api.post(`/players/${playerId}/pin`, { pin });
 }
 
+export async function markIntroSeen(playerId: number): Promise<void> {
+  await api.post(`/players/${playerId}/intro-seen`);
+}
+
 export async function activatePlayer(playerId: number): Promise<void> {
   await api.post(`/players/${playerId}/activate`);
 }
