@@ -58,4 +58,12 @@ describe('UserCard', () => {
     expect(screen.getByText('Deaktivierte Kinder können sich nicht mehr per QR-Code anmelden.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reaktivieren' })).toBeInTheDocument();
   });
+
+  it('zeigt Reset-Optionen fuer Kinder, aber nicht fuer Eltern', async () => {
+    render(<UserCard player={child} isSelf={false} onChanged={() => {}} />);
+    expect(await screen.findByRole('button', { name: 'Aufgaben zurücksetzen' })).toBeInTheDocument();
+
+    render(<UserCard player={parent} isSelf={false} onChanged={() => {}} />);
+    expect(screen.queryAllByRole('button', { name: 'Aufgaben zurücksetzen' })).toHaveLength(1);
+  });
 });

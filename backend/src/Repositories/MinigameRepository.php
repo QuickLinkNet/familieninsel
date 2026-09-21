@@ -76,4 +76,13 @@ final class MinigameRepository
 
         return $statement->rowCount() > 0;
     }
+
+    /**
+     * Test-/Admin-Reset: sperrt alle Minispiele einer Familie wieder.
+     */
+    public function deleteAllForFamily(int $familyId): void
+    {
+        $statement = $this->pdo->prepare('DELETE FROM family_minigames WHERE family_id = :family_id');
+        $statement->execute(['family_id' => $familyId]);
+    }
 }

@@ -127,4 +127,16 @@ final class FamilyBuildingRepository
 
         return $statement->rowCount() > 0;
     }
+
+    /**
+     * Test-/Admin-Reset: entfernt jeglichen Baufortschritt einer Familie
+     * (inkl. der Einzahlungshistorie via ON DELETE CASCADE auf
+     * building_contributions), damit hinterher wieder bei der Strandhuette
+     * auf Stufe 1 begonnen werden kann.
+     */
+    public function deleteAllForFamily(int $familyId): void
+    {
+        $statement = $this->pdo->prepare('DELETE FROM family_buildings WHERE family_id = :family_id');
+        $statement->execute(['family_id' => $familyId]);
+    }
 }

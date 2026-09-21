@@ -4,6 +4,7 @@ import { PlayerAvatar } from '../auth/PlayerAvatar';
 import { EditNameAgeForm } from './EditNameAgeForm';
 import { ParentPinControl } from './ParentPinControl';
 import { ChildQrControl } from './ChildQrControl';
+import { ChildResetControl } from './ChildResetControl';
 import * as playerService from '../../services/playerService';
 
 interface UserCardProps {
@@ -77,6 +78,8 @@ export function UserCard({ player, isSelf, onChanged }: UserCardProps) {
       {player.role === 'child' && !player.isActive && (
         <p className="user-card__hint">Deaktivierte Kinder können sich nicht mehr per QR-Code anmelden.</p>
       )}
+
+      {player.role === 'child' && <ChildResetControl playerId={player.id} childName={player.name} />}
 
       <div className="user-card__footer">
         <button type="button" className="auth-form__secondary" onClick={() => void toggleActive()} disabled={busy || (isSelf && player.isActive)}>

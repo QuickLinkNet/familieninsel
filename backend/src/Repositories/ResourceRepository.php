@@ -108,4 +108,16 @@ final class ResourceRepository
             throw new \RuntimeException('Nicht genuegend Rohstoffe vorhanden.');
         }
     }
+
+    /**
+     * Test-/Admin-Reset: setzt alle Rohstoffbestaende einer Familie auf 0
+     * zurueck, statt die Zeilen zu loeschen (einfacher als Wiederanlegen).
+     */
+    public function resetFamilyBalances(int $familyId): void
+    {
+        $statement = $this->pdo->prepare(
+            "UPDATE family_resources SET amount = 0, updated_at = :now WHERE family_id = :family_id",
+        );
+        $statement->execute(['family_id' => $familyId, 'now' => Clock::nowIso()]);
+    }
 }

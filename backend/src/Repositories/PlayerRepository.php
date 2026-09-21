@@ -112,12 +112,13 @@ final class PlayerRepository
      * Verwaltungsaktionen (Bearbeiten, Passwort setzen, Reaktivieren), die
      * auch auf bereits deaktivierte Profile zugreifen koennen muessen.
      *
-     * @return array{id: int, family_id: int, name: string, age: int|null, role: string, avatar_key: string, parent_pin_hash: string|null, password_hash: string|null, is_active: int}|null
+     * @return array{id: int, family_id: int, name: string, age: int|null, role: string, avatar_key: string, parent_pin_hash: string|null, password_hash: string|null, is_active: int, intro_seen_at: string|null, last_reward_seen_at: string|null}|null
      */
     public function findByIdAndFamily(int $id, int $familyId): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id, family_id, name, age, role, avatar_key, parent_pin_hash, password_hash, is_active
+            'SELECT id, family_id, name, age, role, avatar_key, parent_pin_hash, password_hash, is_active,
+                    intro_seen_at, last_reward_seen_at
              FROM players
              WHERE id = :id AND family_id = :family_id
              LIMIT 1',
@@ -172,6 +173,18 @@ final class PlayerRepository
         $statement = $this->pdo->prepare(
             "UPDATE players SET last_reward_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = :id",
         );
+        $statement->execute(['id' => $id]);
+    }
+
+    public function clearIntroSeen(int $id): void
+    {
+        $statement = $this->pdo->prepare('UPDATE players SET intro_seen_at = NULL WHERE id = :id');
+        $statement->execute(['id' => $id]);
+    }
+
+    public function clearRewardCursor(int $id): void
+    {
+        $statement = $this->pdo->prepare('UPDATE players SET last_reward_seen_at = NULL WHERE id = :id');
         $statement->execute(['id' => $id]);
     }
 

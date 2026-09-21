@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import type { ManagedPlayer } from '../../types/auth';
 import * as playerService from '../../services/playerService';
+import { resetFamilyProgress } from '../../services/resetService';
 import { UserCard } from './UserCard';
 import { AddChildForm } from './AddChildForm';
 import './family-management.css';
@@ -12,6 +13,33 @@ export function FamilyManagementPage() {
   const [players, setPlayers] = useState<ManagedPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState(false);
+
+  async function handleResetFamilyProgress(): Promise<void> {
+    const confirmed = window.confirm(
+      'Wirklich den GESAMTEN Fortschritt der Familie zurücksetzen?\n\n' +
+        'Alle Aufgaben werden wieder offen, alle Rohstoffe geleert, das Bauprojekt beginnt neu bei der ' +
+        'Strandhütte (Stufe 1), Minispiel-Freischaltungen und das Tagebuch werden gelöscht.\n\n' +
+        'Profile, PINs und QR-Codes bleiben erhalten. Das kann nicht rückgängig gemacht werden.',
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setResetBusy(true);
+    setResetError(null);
+    setResetDone(false);
+    try {
+      await resetFamilyProgress();
+      setResetDone(true);
+    } catch {
+      setResetError('Zurücksetzen fehlgeschlagen.');
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -95,6 +123,30 @@ export function FamilyManagementPage() {
             </div>
             <h3>Neues Kind anlegen</h3>
             <AddChildForm onAdded={handleChanged} />
+          </section>
+
+          <section className="family-management__danger-zone">
+            <h2>Fortschritt & Testen</h2>
+            <p className="family-management__intro">
+              Für die einzelnen Kinder gibt es Reset-Optionen direkt bei ihrer Karte oben (Intro, Belohnungen,
+              eigene Aufgaben). Hier der große Knopf für die ganze Familie auf einmal:
+            </p>
+            <button
+              type="button"
+              className="family-management__reset-button"
+              disabled={resetBusy}
+              onClick={() => {
+                void handleResetFamilyProgress();
+              }}
+            >
+              Gesamten Fortschritt zurücksetzen
+            </button>
+            {resetDone && <p className="child-reset-control__success">Fortschritt wurde zurückgesetzt.</p>}
+            {resetError !== null && (
+              <p role="alert" className="auth-error">
+                {resetError}
+              </p>
+            )}
           </section>
         </>
       )}

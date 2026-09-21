@@ -47,6 +47,45 @@ final class ActivityLogRepository
     }
 
     /**
+     * Test-/Admin-Reset: entfernt die 'task_auto_contribution'-Eintraege
+     * bestimmter Aufgaben. Da metadata_json auf dem alten Produktions-SQLite
+     * (kein JSON1-Modul) nicht per SQL durchsucht werden kann, wird hier in
+     * PHP gefiltert - unkritisch, da nur beim seltenen Admin-Reset aufgerufen,
+     * nie im normalen Spielbetrieb.
+     *
+     * @param array<int, int> $taskIds
+     */
+    public function deleteTaskAutoContributionsForTaskIds(int $familyId, array $taskIds): void
+    {
+        if ($taskIds === []) {
+            return;
+        }
+
+        $rows = $this->findByFamilyAndTypeSince($familyId, 'task_auto_contribution', null);
+        $idsToDelete = [];
+        foreach ($rows as $row) {
+            $metadata = json_decode((string) ($row['metadata_json'] ?? ''), true);
+            if (is_array($metadata) && in_array((int) ($metadata['taskId'] ?? 0), $taskIds, true)) {
+                $idsToDelete[] = (int) $row['id'];
+            }
+        }
+
+        if ($idsToDelete === []) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($idsToDelete), '?'));
+        $statement = $this->pdo->prepare("DELETE FROM activity_log WHERE id IN ({$placeholders})");
+        $statement->execute($idsToDelete);
+    }
+
+    public function deleteAllForFamily(int $familyId): void
+    {
+        $statement = $this->pdo->prepare('DELETE FROM activity_log WHERE family_id = :family_id');
+        $statement->execute(['family_id' => $familyId]);
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function findRecentForFamily(int $familyId, int $limit = 50): array

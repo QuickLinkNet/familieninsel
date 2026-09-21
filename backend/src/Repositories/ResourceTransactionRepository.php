@@ -61,4 +61,31 @@ final class ResourceTransactionRepository
 
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Test-/Admin-Reset: loescht die Ledger-Eintraege bestimmter Aufgaben
+     * (task_reward + task_auto_contribution), damit ein zurueckgesetztes
+     * Kind die Aufgabe sauber neu durchspielen kann, ohne dass alte
+     * Belohnungen im RewardReveal erneut auftauchen.
+     *
+     * @param array<int, int> $taskIds
+     */
+    public function deleteForTaskIds(array $taskIds): void
+    {
+        if ($taskIds === []) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+        $statement = $this->pdo->prepare(
+            "DELETE FROM resource_transactions WHERE reference_type = 'task' AND reference_id IN ({$placeholders})",
+        );
+        $statement->execute($taskIds);
+    }
+
+    public function deleteAllForFamily(int $familyId): void
+    {
+        $statement = $this->pdo->prepare('DELETE FROM resource_transactions WHERE family_id = :family_id');
+        $statement->execute(['family_id' => $familyId]);
+    }
 }

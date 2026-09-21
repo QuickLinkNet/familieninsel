@@ -11,6 +11,7 @@ use App\Controllers\HealthController;
 use App\Controllers\MinigamesController;
 use App\Controllers\PlayerPhotoController;
 use App\Controllers\PlayersController;
+use App\Controllers\ResetController;
 use App\Controllers\ResourcesController;
 use App\Controllers\RewardsController;
 use App\Controllers\TasksController;
@@ -34,6 +35,7 @@ use App\Services\BuildingService;
 use App\Services\MinigameService;
 use App\Services\PlayerPhotoService;
 use App\Services\PlayerService;
+use App\Services\ResetService;
 use App\Services\RewardRevealService;
 use App\Services\TaskService;
 use App\Support\JsonResponse;
@@ -115,6 +117,19 @@ $rewardRevealService = new RewardRevealService(
 );
 $rewardsController = new RewardsController($rewardRevealService, $playerService);
 
+$resetService = new ResetService(
+    $pdo,
+    $playerRepository,
+    new TaskRepository($pdo),
+    $resourceRepository,
+    new ResourceTransactionRepository($pdo),
+    new FamilyBuildingRepository($pdo),
+    new BuildingRepository($pdo),
+    $minigameRepository,
+    $activityLogRepository,
+);
+$resetController = new ResetController($resetService);
+
 $taskService = new TaskService(
     $pdo,
     new TaskRepository($pdo),
@@ -151,6 +166,10 @@ $router->post('/players/{id}/pin', [$playersController, 'setPin']);
 $router->post('/players/{id}/intro-seen', [$playersController, 'markIntroSeen']);
 $router->get('/players/{id}/reward-updates', [$rewardsController, 'index']);
 $router->post('/players/{id}/reward-updates/ack', [$rewardsController, 'acknowledge']);
+$router->post('/players/{id}/reset-intro', [$resetController, 'resetIntro']);
+$router->post('/players/{id}/reset-rewards', [$resetController, 'resetRewards']);
+$router->post('/players/{id}/reset-tasks', [$resetController, 'resetTasks']);
+$router->post('/family/reset-progress', [$resetController, 'resetFamilyProgress']);
 $router->post('/players/{id}/activate', [$playersController, 'activate']);
 $router->post('/players/{id}/deactivate', [$playersController, 'deactivate']);
 $router->get('/players/{id}/login-token', [$playersController, 'loginTokenStatus']);
