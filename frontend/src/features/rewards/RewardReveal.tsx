@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSlideDeck, SlideDeckShell } from '../../components/SlideDeck';
 import type { Resource } from '../../types/resource';
-import type { RewardEvent } from '../../types/reward';
+import type { RewardBuildingProgress, RewardEvent } from '../../types/reward';
 import { ResourceIcon } from '../resources/ResourceIcon';
 import { stageImageSrc } from '../island/BuildingSprite';
 import parrotIcon from '../../assets/island/icon-papagei.webp';
@@ -12,7 +13,6 @@ interface RewardRevealProps {
   onFinished: () => void;
 }
 
-const TRANSITION_MS = 250;
 const PROGRESS_ANIMATION_DELAY_MS = 150;
 
 interface AggregatedReward {
@@ -55,17 +55,20 @@ function aggregateRewards(events: RewardEvent[]): AggregatedReward[] {
 }
 
 function summarizeBuilding(events: RewardEvent[]): BuildingSummary | null {
-  const withBuilding = events.filter((event) => event.building !== null);
-  if (withBuilding.length === 0) {
+  const buildings = events
+    .map((event) => event.building)
+    .filter((building): building is RewardBuildingProgress => building !== null);
+
+  if (buildings.length === 0) {
     return null;
   }
 
-  const first = withBuilding[0].building!;
-  const last = withBuilding[withBuilding.length - 1].building!;
-  const justCompleted = withBuilding.some((event) => event.building!.justCompleted);
-  const celebrate = justCompleted || withBuilding.some((event) => event.building!.afterStage > event.building!.beforeStage);
-  const unlockedMinigameName = withBuilding.map((event) => event.building!.unlockedMinigameName).find(Boolean) ?? null;
-  const unlockedBuildingName = withBuilding.map((event) => event.building!.unlockedBuildingName).find(Boolean) ?? null;
+  const first = buildings[0];
+  const last = buildings[buildings.length - 1];
+  const justCompleted = buildings.some((building) => building.justCompleted);
+  const celebrate = justCompleted || buildings.some((building) => building.afterStage > building.beforeStage);
+  const unlockedMinigameName = buildings.map((building) => building.unlockedMinigameName).find(Boolean) ?? null;
+  const unlockedBuildingName = buildings.map((building) => building.unlockedBuildingName).find(Boolean) ?? null;
 
   return {
     key: last.key,
@@ -84,109 +87,77 @@ function summarizeBuilding(events: RewardEvent[]): BuildingSummary | null {
 export function RewardReveal({ events, resources, onFinished }: RewardRevealProps) {
   const building = summarizeBuilding(events);
   const slideCount = building !== null ? 3 : 2;
-  const [slideIndex, setSlideIndex] = useState(0);
-  const [leaving, setLeaving] = useState(false);
+  const { slideIndex, leaving, isLastSlide, goNext } = useSlideDeck(slideCount, onFinished);
   const [animatedPercent, setAnimatedPercent] = useState(building?.beforePercent ?? 0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current !== null) {
-        clearTimeout(timer.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (slideIndex !== 2 || building === null) {
       return;
     }
-    const raf = setTimeout(() => setAnimatedPercent(building.afterPercent), PROGRESS_ANIMATION_DELAY_MS);
-    return () => clearTimeout(raf);
+    const timer = setTimeout(() => setAnimatedPercent(building.afterPercent), PROGRESS_ANIMATION_DELAY_MS);
+    return () => clearTimeout(timer);
   }, [slideIndex, building]);
-
-  const isLastSlide = slideIndex === slideCount - 1;
-
-  function goNext(): void {
-    if (isLastSlide) {
-      onFinished();
-      return;
-    }
-    setLeaving(true);
-    timer.current = setTimeout(() => {
-      setSlideIndex((current) => current + 1);
-      setLeaving(false);
-    }, TRANSITION_MS);
-  }
 
   function resourceName(key: string): string {
     return resources.find((resource) => resource.key === key)?.name ?? key;
   }
 
   return (
-    <div className="reward-reveal">
-      <div className={`reward-reveal__panel${leaving ? ' reward-reveal__panel--leaving' : ''}`}>
-        {slideIndex === 0 && (
-          <>
-            <img src={parrotIcon} alt="" aria-hidden="true" className="reward-reveal__pico" />
-            <p className="reward-reveal__headline">Deine Aufgabe hat unserer Insel geholfen!</p>
-            <p className="reward-reveal__text">{summarizeTitle(events)}</p>
-          </>
-        )}
+    <SlideDeckShell
+      slideCount={slideCount}
+      slideIndex={slideIndex}
+      leaving={leaving}
+      isLastSlide={isLastSlide}
+      onNext={goNext}
+      finishLabel="Weiter zur Insel"
+    >
+      {slideIndex === 0 && (
+        <>
+          <img src={parrotIcon} alt="" aria-hidden="true" className="reward-reveal__pico" />
+          <p className="reward-reveal__headline">Deine Aufgabe hat unserer Insel geholfen!</p>
+          <p className="reward-reveal__text">{summarizeTitle(events)}</p>
+        </>
+      )}
 
-        {slideIndex === 1 && (
-          <>
-            <p className="reward-reveal__headline">Das habt ihr verdient:</p>
-            <div className="reward-reveal__rewards">
-              {aggregateRewards(events).map((reward) => (
-                <div key={reward.resourceKey} className="reward-reveal__reward-item">
-                  <ResourceIcon resourceKey={reward.resourceKey} className="reward-reveal__reward-icon" />
-                  <span>
-                    +{reward.amount} {resourceName(reward.resourceKey)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {slideIndex === 2 && building !== null && (
-          <div className={building.celebrate ? 'reward-reveal__celebrate' : undefined}>
-            <img
-              src={stageImageSrc(building.key, building.afterStage)}
-              alt=""
-              aria-hidden="true"
-              className="reward-reveal__building-image"
-            />
-            <p className="reward-reveal__headline">
-              {building.justCompleted ? `${building.name} ist fertig! 🎉` : `${building.name} macht Fortschritte!`}
-            </p>
-            <div className="progress-bar reward-reveal__progress-bar">
-              <div className="progress-bar__fill" style={{ width: `${animatedPercent}%` }} />
-            </div>
-            <p className="reward-reveal__text">{building.afterPercent}% fertig</p>
-            {building.unlockedMinigameName !== null && (
-              <p className="reward-reveal__unlock">Neu freigeschaltet: {building.unlockedMinigameName}!</p>
-            )}
-            {building.unlockedBuildingName !== null && (
-              <p className="reward-reveal__unlock">Neues Bauprojekt: {building.unlockedBuildingName}!</p>
-            )}
+      {slideIndex === 1 && (
+        <>
+          <p className="reward-reveal__headline">Das habt ihr verdient:</p>
+          <div className="reward-reveal__rewards">
+            {aggregateRewards(events).map((reward) => (
+              <div key={reward.resourceKey} className="reward-reveal__reward-item">
+                <ResourceIcon resourceKey={reward.resourceKey} className="reward-reveal__reward-icon" />
+                <span>
+                  +{reward.amount} {resourceName(reward.resourceKey)}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
+        </>
+      )}
 
-        <button type="button" className="reward-reveal__next-button" onClick={goNext}>
-          {isLastSlide ? 'Weiter zur Insel' : 'Weiter'}
-        </button>
-
-        <div className="reward-reveal__dots">
-          {Array.from({ length: slideCount }, (_, index) => (
-            <span
-              key={index}
-              className={`reward-reveal__dot${index === slideIndex ? ' reward-reveal__dot--active' : ''}`}
-            />
-          ))}
+      {slideIndex === 2 && building !== null && (
+        <div className={building.celebrate ? 'reward-reveal__celebrate' : undefined}>
+          <img
+            src={stageImageSrc(building.key, building.afterStage)}
+            alt=""
+            aria-hidden="true"
+            className="reward-reveal__building-image"
+          />
+          <p className="reward-reveal__headline">
+            {building.justCompleted ? `${building.name} ist fertig! 🎉` : `${building.name} macht Fortschritte!`}
+          </p>
+          <div className="progress-bar reward-reveal__progress-bar">
+            <div className="progress-bar__fill" style={{ width: `${animatedPercent}%` }} />
+          </div>
+          <p className="reward-reveal__text">{building.afterPercent}% fertig</p>
+          {building.unlockedMinigameName !== null && (
+            <p className="reward-reveal__unlock">Neu freigeschaltet: {building.unlockedMinigameName}!</p>
+          )}
+          {building.unlockedBuildingName !== null && (
+            <p className="reward-reveal__unlock">Neues Bauprojekt: {building.unlockedBuildingName}!</p>
+          )}
         </div>
-      </div>
-    </div>
+      )}
+    </SlideDeckShell>
   );
 }

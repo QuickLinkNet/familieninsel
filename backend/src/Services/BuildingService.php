@@ -51,11 +51,7 @@ final class BuildingService
         }
 
         $familyBuildingId = (int) $familyBuilding['id'];
-
-        $costsByResource = [];
-        foreach ($this->buildings->findCosts($buildingId) as $cost) {
-            $costsByResource[(int) $cost['resource_id']] = (int) $cost['required_amount'];
-        }
+        $costsByResource = $this->costsByResourceFor($buildingId);
 
         $contributed = $this->familyBuildings->findContributedTotals($familyBuildingId);
         $balances = $this->resources->findFamilyBalances($familyId);
@@ -75,10 +71,8 @@ final class BuildingService
                 return $this->error('VALIDATION_ERROR', "Unbekannter Rohstoff: {$resourceKey}");
             }
 
-            $required = $costsByResource[$resourceId] ?? 0;
-            $alreadyContributed = $contributed[$resourceId] ?? 0;
-            $stillNeeded = max(0, $required - $alreadyContributed);
-            if ($stillNeeded === 0) {
+            $capped = $this->capToRemainingNeed($costsByResource, $contributed, [$resourceId => $requestedAmount]);
+            if (!isset($capped[$resourceId])) {
                 continue;
             }
 
@@ -87,7 +81,7 @@ final class BuildingService
                 return $this->error('INSUFFICIENT_RESOURCES', 'Nicht genug Rohstoffe fuer diese Einzahlung vorhanden.');
             }
 
-            $toApply[$resourceId] = min($requestedAmount, $stillNeeded);
+            $toApply[$resourceId] = $capped[$resourceId];
         }
 
         if ($toApply === []) {
@@ -114,6 +108,7 @@ final class BuildingService
                 $familyId,
                 $familyBuildingId,
                 $buildingId,
+                $costsByResource,
                 (int) $familyBuilding['stage'],
                 $toApply,
                 $playerId,
@@ -181,27 +176,13 @@ final class BuildingService
         $buildingId = (int) $familyBuilding['building_id'];
         $beforeStage = (int) $familyBuilding['stage'];
 
-        $costsByResource = [];
-        foreach ($this->buildings->findCosts($buildingId) as $cost) {
-            $costsByResource[(int) $cost['resource_id']] = (int) $cost['required_amount'];
-        }
+        $costsByResource = $this->costsByResourceFor($buildingId);
 
         $contributed = $this->familyBuildings->findContributedTotals($familyBuildingId);
         $beforeTotals = $this->sumCappedTotals($costsByResource, $contributed);
         $beforePercent = $this->percentFor($beforeTotals['contributedTotal'], $beforeTotals['requiredTotal']);
 
-        $toInvest = [];
-        foreach ($earnedAmountsByResourceId as $resourceId => $amount) {
-            $amount = (int) $amount;
-            if ($amount <= 0) {
-                continue;
-            }
-            $stillNeeded = max(0, ($costsByResource[$resourceId] ?? 0) - ($contributed[$resourceId] ?? 0));
-            $invested = min($amount, $stillNeeded);
-            if ($invested > 0) {
-                $toInvest[$resourceId] = $invested;
-            }
-        }
+        $toInvest = $this->capToRemainingNeed($costsByResource, $contributed, $earnedAmountsByResourceId);
 
         $overflow = [];
         foreach ($earnedAmountsByResourceId as $resourceId => $amount) {
@@ -241,7 +222,7 @@ final class BuildingService
             );
         }
 
-        $applied = $this->applyContribution($familyId, $familyBuildingId, $buildingId, $beforeStage, $toInvest, $playerId);
+        $applied = $this->applyContribution($familyId, $familyBuildingId, $buildingId, $costsByResource, $beforeStage, $toInvest, $playerId);
 
         return [
             'invested' => $toInvest,
@@ -265,6 +246,7 @@ final class BuildingService
      * Freischalt-Kette (Minispiel/naechstes Gebaeude) aus. Traegt selbst KEINE
      * Transaktion - der Aufrufer haelt die Transaktionsklammer.
      *
+     * @param array<int, int> $costsByResource bereits vom Aufrufer ermittelt, wird hier nicht erneut abgefragt
      * @param array<int, int> $amountsByResourceId resource_id => bereits gedeckelte Menge
      * @return array{
      *     newStage: int,
@@ -279,17 +261,13 @@ final class BuildingService
         int $familyId,
         int $familyBuildingId,
         int $buildingId,
+        array $costsByResource,
         int $oldStage,
         array $amountsByResourceId,
         int $playerId,
     ): array {
         foreach ($amountsByResourceId as $resourceId => $amount) {
             $this->familyBuildings->recordContribution($familyBuildingId, $resourceId, $amount, $playerId);
-        }
-
-        $costsByResource = [];
-        foreach ($this->buildings->findCosts($buildingId) as $cost) {
-            $costsByResource[(int) $cost['resource_id']] = (int) $cost['required_amount'];
         }
 
         $newContributed = $this->familyBuildings->findContributedTotals($familyBuildingId);
@@ -365,6 +343,48 @@ final class BuildingService
             'unlockedMinigameName' => $unlockedMinigameName,
             'unlockedBuildingName' => $unlockedBuildingName,
         ];
+    }
+
+    /**
+     * @return array<int, int> resource_id => benoetigte Menge
+     */
+    private function costsByResourceFor(int $buildingId): array
+    {
+        $costsByResource = [];
+        foreach ($this->buildings->findCosts($buildingId) as $cost) {
+            $costsByResource[(int) $cost['resource_id']] = (int) $cost['required_amount'];
+        }
+
+        return $costsByResource;
+    }
+
+    /**
+     * Deckelt angebotene Mengen auf den tatsaechlichen Restbedarf pro
+     * Rohstoff (benoetigt minus bereits eingezahlt) - die eine gemeinsame
+     * Definition von "wie viel einer Einzahlung zaehlt tatsaechlich", die
+     * sich sowohl contribute() (manuelle Einzahlung) als auch
+     * investEarnedResourcesFromTask() (automatische Einzahlung) teilen.
+     * Ressourcen, die der Restbedarf-Pruefung nicht standhalten (Bedarf
+     * bereits gedeckt, oder Menge <= 0), tauchen im Ergebnis gar nicht auf.
+     *
+     * @param array<int, int> $costsByResource
+     * @param array<int, int> $contributedByResource
+     * @param array<int|string, int> $amounts resource_id => angebotene Menge
+     * @return array<int, int> resource_id => tatsaechlich anrechenbare Menge (> 0)
+     */
+    private function capToRemainingNeed(array $costsByResource, array $contributedByResource, array $amounts): array
+    {
+        $capped = [];
+        foreach ($amounts as $resourceId => $amount) {
+            $resourceId = (int) $resourceId;
+            $stillNeeded = max(0, ($costsByResource[$resourceId] ?? 0) - ($contributedByResource[$resourceId] ?? 0));
+            $applied = min((int) $amount, $stillNeeded);
+            if ($applied > 0) {
+                $capped[$resourceId] = $applied;
+            }
+        }
+
+        return $capped;
     }
 
     /**

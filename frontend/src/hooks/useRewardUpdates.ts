@@ -6,7 +6,6 @@ const EMPTY: RewardUpdates = { hasUpdates: false, events: [] };
 
 export function useRewardUpdates(playerId: number | null) {
   const [updates, setUpdates] = useState<RewardUpdates>(EMPTY);
-  const [loading, setLoading] = useState(playerId !== null);
 
   const refresh = useCallback(async () => {
     if (playerId === null) {
@@ -21,11 +20,8 @@ export function useRewardUpdates(playerId: number | null) {
   }, [playerId]);
 
   useEffect(() => {
-    setLoading(true);
-    refresh()
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+    void refresh();
   }, [refresh]);
 
-  return { updates, loading, refresh };
+  return { updates, refresh };
 }

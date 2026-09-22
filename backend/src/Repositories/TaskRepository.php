@@ -172,33 +172,28 @@ final class TaskRepository
     }
 
     /**
-     * Test-/Admin-Reset: setzt alle Aufgaben eines Spielers zurueck auf
-     * "offen", als waere noch nichts gemeldet/bestaetigt worden. Ruehrt die
-     * Rohstoff-Belohnungen selbst nicht an - das ist bewusst Aufgabe des
-     * aufrufenden ResetService (Ledger-Bereinigung), damit diese Methode ein
-     * einfacher, vorhersehbarer Baustein bleibt.
+     * Test-/Admin-Reset: setzt Aufgaben zurueck auf "offen", als waere noch
+     * nichts gemeldet/bestaetigt worden - entweder nur fuer einen Spieler
+     * (pro-Kind-Reset) oder, wenn $playerId weggelassen wird, fuer die
+     * gesamte Familie auf einmal (Teil des grossen "Fortschritt komplett
+     * zuruecksetzen"-Knopfs). Ruehrt die Rohstoff-Belohnungen selbst nicht
+     * an - das ist bewusst Aufgabe des aufrufenden ResetService
+     * (Ledger-Bereinigung), damit diese Methode ein einfacher,
+     * vorhersehbarer Baustein bleibt.
      */
-    public function resetForPlayer(int $familyId, int $playerId): void
+    public function resetTasks(int $familyId, ?int $playerId = null): void
     {
-        $statement = $this->pdo->prepare(
-            "UPDATE tasks SET status = 'open', completed_at = NULL, approved_at = NULL,
+        $sql = "UPDATE tasks SET status = 'open', completed_at = NULL, approved_at = NULL,
                     approved_by_player_id = NULL, rewarded_at = NULL, parent_note = NULL, updated_at = :now
-             WHERE family_id = :family_id AND assigned_player_id = :player_id AND status != 'cancelled'",
-        );
-        $statement->execute(['family_id' => $familyId, 'player_id' => $playerId, 'now' => Clock::nowIso()]);
-    }
+                WHERE family_id = :family_id AND status != 'cancelled'";
+        $params = ['family_id' => $familyId, 'now' => Clock::nowIso()];
 
-    /**
-     * Wie resetForPlayer(), aber fuer die gesamte Familie auf einmal (Teil des
-     * grossen "Fortschritt komplett zuruecksetzen"-Knopfs).
-     */
-    public function resetAllForFamily(int $familyId): void
-    {
-        $statement = $this->pdo->prepare(
-            "UPDATE tasks SET status = 'open', completed_at = NULL, approved_at = NULL,
-                    approved_by_player_id = NULL, rewarded_at = NULL, parent_note = NULL, updated_at = :now
-             WHERE family_id = :family_id AND status != 'cancelled'",
-        );
-        $statement->execute(['family_id' => $familyId, 'now' => Clock::nowIso()]);
+        if ($playerId !== null) {
+            $sql .= ' AND assigned_player_id = :player_id';
+            $params['player_id'] = $playerId;
+        }
+
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($params);
     }
 }

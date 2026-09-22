@@ -85,7 +85,7 @@ final class ResetService
 
         $this->pdo->beginTransaction();
         try {
-            $this->tasks->resetForPlayer($familyId, $playerId);
+            $this->tasks->resetTasks($familyId, $playerId);
             if ($taskIds !== []) {
                 $this->transactions->deleteForTaskIds($taskIds);
                 $this->activityLog->deleteTaskAutoContributionsForTaskIds($familyId, $taskIds);
@@ -112,7 +112,7 @@ final class ResetService
     {
         $this->pdo->beginTransaction();
         try {
-            $this->tasks->resetAllForFamily($familyId);
+            $this->tasks->resetTasks($familyId);
             $this->transactions->deleteAllForFamily($familyId);
             $this->familyBuildings->deleteAllForFamily($familyId);
             $this->minigames->deleteAllForFamily($familyId);
